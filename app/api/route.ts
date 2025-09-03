@@ -1,57 +1,70 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-import { createSupabaseServerClient } from '@/lib/auth'
+import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
+import { createSupabaseServerClient } from '@/lib/auth';
+import cloudinary from 'cloudinary';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+);
 
-// ✅ CORS helper
+// Configure Cloudinary
+cloudinary.v2.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
+
+// CORS helper
 function withCors(response: NextResponse) {
-  response.headers.set('Access-Control-Allow-Origin', '*') // Allow all origins
-  response.headers.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-  response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization')
-  response.headers.set('Access-Control-Max-Age', '86400') // Optional: Cache preflight for 24 hours
-  return response
+  response.headers.set('Access-Control-Allow-Origin', '*');
+  response.headers.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  response.headers.set('Access-Control-Max-Age', '86400');
+  return response;
 }
 
 type RequestBody = {
-  targetUrl: string;
-  expireDate: string | Date; // Can be preset string or ISO date string
-  customSlug?: string;
-  title?: string;
+  customer_name: string;
+  image?: File;
+  video?: File;
 };
 
-// ✅ Handle OPTIONS for preflight
+// Handle OPTIONS for preflight
 export async function OPTIONS() {
-  return withCors(new NextResponse(null, { status: 204 }))
+  return withCors(new NextResponse(null, { status: 204 }));
 }
 
-// GET: /api/resolve-url?slug=abc123
+// GET: /api/links?slug=abc123
 export async function GET(req: NextRequest) {
-  const slug = req.nextUrl.searchParams.get('slug')
+  const slug = req.nextUrl.searchParams.get('slug');
 
   if (!slug) {
     return withCors(
       NextResponse.json({ error: 'Slug is required' }, { status: 400 })
-    )
+    );
   }
 
-  const { data, error } = await supabase.rpc('get_url_by_slug', {
-    slug_input: slug,
-  })
+  const { data, error } = await supabase
+    .from('data')
+    .select('image_url, video_url, title')
+    .eq('slug', slug)
+    .single();
 
-  if (error || !data || data.length === 0) {
+  if (error || !data) {
     return withCors(
-      NextResponse.json({ error: 'Not found or expired' }, { status: 404 })
-    )
+      NextResponse.json({ error: 'Not found' }, { status: 404 })
+    );
   }
 
-  return withCors(NextResponse.json({ targetUrl: data[0].target_url }))
+  return withCors(NextResponse.json({
+    customer_name: data.title,
+    image_url: data.image_url,
+    video_url: data.video_url
+  }));
 }
 
-// POST: /api/resolve-url
+// POST: /api/links
 export async function POST(req: NextRequest) {
   const supabase = await createSupabaseServerClient();
   
@@ -60,95 +73,91 @@ export async function POST(req: NextRequest) {
   const userId = user?.id || null;
 
   try {
-    const body: RequestBody = await req.json();
-    const { targetUrl, expireDate, title } = body;
+    const formData = await req.formData();
+    const customer_name = formData.get('customer_name') as string;
+    const image = formData.get('image') as File | null;
+    const video = formData.get('video') as File | null;
 
     // Basic validation
-    if (!targetUrl) {
+    if (!customer_name) {
       return withCors(
-        NextResponse.json({ error: 'targetUrl is required' }, { status: 400 })
+        NextResponse.json({ error: 'Customer name is required' }, { status: 400 })
       );
     }
 
-    // Validate URL format
-    try {
-      new URL(targetUrl);
-    } catch {
-      return withCors(
-        NextResponse.json({ error: 'Invalid URL format' }, { status: 400 })
-      );
+    let image_url = '';
+    let video_url = '';
+
+    // Use user_id as folder name, fallback to 'anonymous' if not authenticated
+    const folderName = userId || 'anonymous';
+
+    // Upload image to Cloudinary
+    if (image) {
+      const imageBuffer = Buffer.from(await image.arrayBuffer());
+      const imageUpload = await new Promise((resolve, reject) => {
+        cloudinary.v2.uploader.upload_stream(
+          { resource_type: 'image', folder: folderName },
+          (error, result) => {
+            if (error) reject(error);
+            else resolve(result);
+          }
+        ).end(imageBuffer);
+      });
+      image_url = (imageUpload as any).secure_url;
     }
 
-    // Parse expiration date
-    let expiresAt: string | null = null;
-    if (expireDate) {
-      if (typeof expireDate === 'string') {
-        const now = new Date();
-        
-        switch (expireDate) {
-          case '1day':
-            now.setDate(now.getDate() + 1);
-            expiresAt = now.toISOString();
-            break;
-          case '1week':
-            now.setDate(now.getDate() + 7);
-            expiresAt = now.toISOString();
-            break;
-          case '1month':
-            now.setMonth(now.getMonth() + 1);
-            expiresAt = now.toISOString();
-            break;
-          case 'never':
-            expiresAt = null;
-            break;
-          default:
-            // Try to parse as ISO date string
-            try {
-              new Date(expireDate);
-              expiresAt = expireDate;
-            } catch {
-              return withCors(
-                NextResponse.json(
-                  { error: 'Invalid expireDate format. Use preset or ISO date string' },
-                  { status: 400 }
-                )
-              );
-            }
-        }
-      } else {
-        expiresAt = new Date(expireDate).toISOString();
-      }
+    // Upload video to Cloudinary
+    if (video) {
+      const videoBuffer = Buffer.from(await video.arrayBuffer());
+      const videoUpload = await new Promise((resolve, reject) => {
+        cloudinary.v2.uploader.upload_stream(
+          { resource_type: 'video', folder: folderName },
+          (error, result) => {
+            if (error) reject(error);
+            else resolve(result);
+          }
+        ).end(videoBuffer);
+      });
+      video_url = (videoUpload as any).secure_url;
     }
 
-    // Call Supabase RPC
-    const { data, error } = await supabase.rpc('create_short_link', {
-      target_url_input: targetUrl,
-      expires_at_input: expiresAt,
-      title_input: title ?? '',
-      user_id_input: userId // Will be null if not authenticated
-    });
+    // Generate random slug
+    const slug = Math.random().toString(36).substring(2, 8);
+
+    // Save to Supabase
+    const { data, error } = await supabase
+      .from('data')
+      .insert({
+        slug,
+        image_url: image_url || '',
+        video_url: video_url || '',
+        title: customer_name,
+        user_id: userId,
+        created_at: new Date().toISOString(),
+        scans: 0
+      })
+      .select()
+      .single();
 
     if (error) {
-      console.error('RPC error:', error);
+      console.error('Supabase error:', error);
       return withCors(
         NextResponse.json(
-          { 
-            error: error.message.includes('already exists') 
-              ? 'This custom slug is already taken' 
-              : 'Failed to create link'
-          },
-          { status: error.message.includes('already exists') ? 409 : 500 }
+          { error: error.message.includes('duplicate key') ? 'Slug already exists' : 'Failed to create link' },
+          { status: error.message.includes('duplicate key') ? 409 : 500 }
         )
       );
     }
 
     return withCors(
       NextResponse.json(
-        { 
+        {
           success: true,
-          shortUrl: `${process.env.NEXT_PUBLIC_BASE_URL}/${data}`,
-          slug: data,
-          expiresAt,
+          shortUrl: `${process.env.NEXT_PUBLIC_BASE_URL}/${slug}`,
+          slug,
+          customer_name,
+          image_url,
+          video_url,
           isAuthenticated: !!userId
         },
         { status: 201 }

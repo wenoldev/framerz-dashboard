@@ -7,7 +7,7 @@ export async function getLinks(uid:string) {
   const supabase = await createSupabaseServerClient();
 
   const { data: links, error } = await supabase
-    .from('short_links')
+    .from('data')
     .select('*')
     .eq('user_id', uid);
 

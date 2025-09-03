@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -22,36 +22,34 @@ import {
   Copy,
   Plus,
   Search,
-  Eye,
-  Edit,
-  MoreHorizontal,
-  ExternalLink,
   BarChart3,
   Calendar,
   Trash2,
   Link as LinkIcon,
+  MoreHorizontal,
+  Edit,
+  Eye,
+  Download,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { format, addDays, addWeeks, addMonths, parseISO, isAfter } from 'date-fns';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { format } from 'date-fns';
+import { QRCodeSVG } from 'qrcode.react';
 
 type Link = {
   id: string;
   slug: string;
   clicks: number;
   shortUrl: string;
-  target_url: string;
+  customer_name?: string;
   created_at: string;
   status: 'active' | 'paused' | 'inactive';
-  title?: string;
-  expires_at?: string | null;
+  image?: string | null;
+  video?: string | null;
 };
 
 type Props = {
   initialLinks: Link[];
 };
-
-type ExpirationOption = '1day' | '1week' | '1month' | 'never' | 'custom';
 
 export default function LinkTableClient({ initialLinks }: Props) {
   const [links, setLinks] = useState<Link[]>(initialLinks);
@@ -60,14 +58,16 @@ export default function LinkTableClient({ initialLinks }: Props) {
   const [searchTerm, setSearchTerm] = useState('');
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isViewQrDialogOpen, setIsViewQrDialogOpen] = useState(false);
   const [currentLink, setCurrentLink] = useState<Link | null>(null);
-  const [error, setError] = useState("");
+  const [error, setError] = useState('');
+  const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
   const [newLinkData, setNewLinkData] = useState({
-    target_url: '',
-    title: '',
-    expires_at: '1week' as ExpirationOption,
-    expires_at_date: ''
+    customer_name: '',
+    image: null as File | null,
+    video: null as File | null,
   });
+  const qrCodeRef = useRef<any>(null);
   const itemsPerPage = 8;
 
   function isValidDate(date: Date): boolean {
@@ -76,35 +76,32 @@ export default function LinkTableClient({ initialLinks }: Props) {
 
   // Format dates on client side
   useEffect(() => {
-    setLinks(initialLinks.map(link => {
-      try {
-        const created_at = link.created_at ? new Date(link.created_at) : new Date();
-        const expires_at = link.expires_at && link.expires_at !== 'Never' ? new Date(link.expires_at) : null;
-
-        return {
-          ...link,
-          created_at: isValidDate(created_at) ? format(created_at, 'MMM d, yyyy') : 'Invalid date',
-          expires_at: expires_at && isValidDate(expires_at) ? format(expires_at, 'MMM d, yyyy') : 'Never',
-          shortUrl: link.shortUrl || `${process.env.NEXT_PUBLIC_BASE_URL}/${link.slug}`
-        };
-      } catch (error) {
-        console.error('Error formatting dates for link:', link.id, error);
-        return {
-          ...link,
-          created_at: 'Invalid date',
-          expires_at: 'Never',
-          shortUrl: link.shortUrl || `${process.env.NEXT_PUBLIC_BASE_URL}/${link.slug}`
-        };
-      }
-    }));
+    setLinks(
+      initialLinks.map((link) => {
+        try {
+          const created_at = link.created_at ? new Date(link.created_at) : new Date();
+          return {
+            ...link,
+            created_at: isValidDate(created_at) ? format(created_at, 'MMM d, yyyy') : 'Invalid date',
+            shortUrl: link.shortUrl || `${process.env.NEXT_PUBLIC_BASE_URL}/${link.slug}`,
+          };
+        } catch (error) {
+          console.error('Error formatting dates for link:', link.id, error);
+          return {
+            ...link,
+            created_at: 'Invalid date',
+            shortUrl: link.shortUrl || `${process.env.NEXT_PUBLIC_BASE_URL}/${link.slug}`,
+          };
+        }
+      })
+    );
   }, [initialLinks]);
 
   // Filter links based on search term
   const filteredLinks = links.filter(
     (link) =>
       link.slug.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      link.target_url.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (link.title && link.title.toLowerCase().includes(searchTerm.toLowerCase()))
+      (link.customer_name && link.customer_name.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
   // Calculate pagination
@@ -123,21 +120,26 @@ export default function LinkTableClient({ initialLinks }: Props) {
     }
   };
 
-  const calculateExpirationDate = (option: ExpirationOption, customDate?: string): string | null => {
-    const now = new Date();
-
-    switch (option) {
-      case '1day':
-        return addDays(now, 1).toISOString();
-      case '1week':
-        return addWeeks(now, 1).toISOString();
-      case '1month':
-        return addMonths(now, 1).toISOString();
-      case 'custom':
-        return customDate ? new Date(customDate).toISOString() : null;
-      case 'never':
-      default:
-        return null;
+  const downloadQrCode = () => {
+    if (qrCodeRef.current) {
+      const canvas = qrCodeRef.current.querySelector('svg');
+      if (canvas) {
+        const svgData = new XMLSerializer().serializeToString(canvas);
+        const canvasElement = document.createElement('canvas');
+        const ctx = canvasElement.getContext('2d');
+        const img = new Image();
+        img.onload = () => {
+          canvasElement.width = img.width;
+          canvasElement.height = img.height;
+          ctx?.drawImage(img, 0, 0);
+          const url = canvasElement.toDataURL('image/png');
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = `qr-code-${newLinkData.customer_name || 'link'}.png`;
+          link.click();
+        };
+        img.src = 'data:image/svg+xml;base64,' + btoa(svgData);
+      }
     }
   };
 
@@ -145,41 +147,54 @@ export default function LinkTableClient({ initialLinks }: Props) {
     setIsLoading(true);
     setError('');
 
-    // Validate URL format
-    try {
-      new URL(newLinkData.target_url);
-    } catch {
-      setError('Please enter a valid URL (e.g., https://example.com)');
+    // Validate customer name
+    if (!newLinkData.customer_name.trim()) {
+      setError('Please enter a customer name');
       setIsLoading(false);
       return;
     }
 
-    // Validate custom date if selected
-    if (newLinkData.expires_at === 'custom' && newLinkData.expires_at_date) {
-      const selectedDate = new Date(newLinkData.expires_at_date);
-      if (!isAfter(selectedDate, new Date())) {
-        setError('Expiration date must be in the future');
+    // Validate image file
+    if (newLinkData.image) {
+      const validImageTypes = ['image/jpeg', 'image/png', 'image/gif'];
+      if (!validImageTypes.includes(newLinkData.image.type)) {
+        setError('Please upload a valid image (JPEG, PNG, or GIF)');
+        setIsLoading(false);
+        return;
+      }
+      if (newLinkData.image.size > 5 * 1024 * 1024) {
+        // 5MB limit
+        setError('Image size must be less than 5MB');
+        setIsLoading(false);
+        return;
+      }
+    }
+
+    // Validate video file
+    if (newLinkData.video) {
+      const validVideoTypes = ['video/mp4', 'video/webm', 'video/ogg'];
+      if (!validVideoTypes.includes(newLinkData.video.type)) {
+        setError('Please upload a valid video (MP4, WebM, or OGG)');
+        setIsLoading(false);
+        return;
+      }
+      if (newLinkData.video.size > 100 * 1024 * 1024) {
+        // 100MB limit
+        setError('Video size must be less than 100MB');
         setIsLoading(false);
         return;
       }
     }
 
     try {
-      const expiresAt = calculateExpirationDate(
-        newLinkData.expires_at,
-        newLinkData.expires_at_date
-      );
+      const formData = new FormData();
+      formData.append('customer_name', newLinkData.customer_name);
+      if (newLinkData.image) formData.append('image', newLinkData.image);
+      if (newLinkData.video) formData.append('video', newLinkData.video);
 
       const response = await fetch('/api/links', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          targetUrl: newLinkData.target_url,
-          title: newLinkData.title || undefined,
-          expires_at: expiresAt
-        }),
+        body: formData,
       });
 
       if (!response.ok) {
@@ -192,24 +207,20 @@ export default function LinkTableClient({ initialLinks }: Props) {
         ...data,
         shortUrl: `${process.env.NEXT_PUBLIC_BASE_URL}/${data.slug}`,
         created_at: format(new Date(), 'MMM d, yyyy'),
-        expires_at: data.expires_at ? format(new Date(data.expires_at), 'MMM d, yyyy') : 'Never',
         status: 'active',
-        clicks: 0
+        clicks: 0,
+        customer_name: data.customer_name,
+        image: data.image_url || null,
+        video: data.video_url || null,
       };
 
-      setLinks(prev => [formattedLink, ...prev]);
+      setLinks((prev) => [formattedLink, ...prev]);
+      setQrCodeUrl(formattedLink.shortUrl);
       toast.success('Link created successfully!', {
         action: {
           label: 'Copy',
           onClick: () => copyToClipboard(formattedLink.shortUrl),
         },
-      });
-      setIsCreateDialogOpen(false);
-      setNewLinkData({
-        target_url: '',
-        title: '',
-        expires_at: '1week',
-        expires_at_date: ''
       });
     } catch (err: unknown) {
       const error = err instanceof Error ? err : new Error('Failed to create link');
@@ -226,22 +237,7 @@ export default function LinkTableClient({ initialLinks }: Props) {
     setIsLoading(true);
     setError('');
 
-    // Validate custom date if selected
-    if (newLinkData.expires_at === 'custom' && newLinkData.expires_at_date) {
-      const selectedDate = new Date(newLinkData.expires_at_date);
-      if (!isAfter(selectedDate, new Date())) {
-        setError('Expiration date must be in the future');
-        setIsLoading(false);
-        return;
-      }
-    }
-
     try {
-      const expiresAt = calculateExpirationDate(
-        newLinkData.expires_at,
-        newLinkData.expires_at_date
-      );
-
       const response = await fetch('/api/links', {
         method: 'PUT',
         headers: {
@@ -249,9 +245,7 @@ export default function LinkTableClient({ initialLinks }: Props) {
         },
         body: JSON.stringify({
           id: currentLink.id,
-          target_url: newLinkData.target_url,
-          title: newLinkData.title,
-          expires_at: expiresAt
+          customer_name: newLinkData.customer_name,
         }),
       });
 
@@ -260,13 +254,14 @@ export default function LinkTableClient({ initialLinks }: Props) {
       }
 
       const data = await response.json();
-      const updatedLinks = links.map(link =>
-        link.id === currentLink.id ? {
-          ...data,
-          shortUrl: `${process.env.NEXT_PUBLIC_BASE_URL}/${data.slug}`,
-          created_at: format(new Date(data.created_at), 'MMM d, yyyy'),
-          expires_at: data.expires_at ? format(new Date(data.expires_at), 'MMM d, yyyy') : 'Never'
-        } : link
+      const updatedLinks = links.map((link) =>
+        link.id === currentLink.id
+          ? {
+              ...data,
+              shortUrl: `${process.env.NEXT_PUBLIC_BASE_URL}/${data.slug}`,
+              created_at: format(new Date(data.created_at), 'MMM d, yyyy'),
+            }
+          : link
       );
 
       setLinks(updatedLinks);
@@ -296,7 +291,7 @@ export default function LinkTableClient({ initialLinks }: Props) {
         throw new Error('Failed to delete link');
       }
 
-      setLinks(links.filter(link => link.id !== linkId));
+      setLinks(links.filter((link) => link.id !== linkId));
       toast.success('Link deleted successfully!');
     } catch (error) {
       toast.error('Failed to delete link');
@@ -308,34 +303,18 @@ export default function LinkTableClient({ initialLinks }: Props) {
 
   const openEditDialog = (link: Link) => {
     setCurrentLink(link);
-
-    // Determine the expires_at state for the edit form
-    let expiresAtOption: ExpirationOption = 'never';
-    let expiresAtDate = '';
-
-    if (link.expires_at && link.expires_at !== 'Never') {
-      expiresAtOption = 'custom';
-      try {
-        expiresAtDate = format(parseISO(link.expires_at), 'yyyy-MM-dd');
-      } catch (e) {
-        console.error('Error parsing expiration date:', e);
-        expiresAtOption = 'never';
-      }
-    }
-
     setNewLinkData({
-      target_url: link.target_url,
-      title: link.title || '',
-      expires_at: expiresAtOption,
-      expires_at_date: expiresAtDate
+      customer_name: link.customer_name || '',
+      image: null,
+      video: null,
     });
     setIsEditDialogOpen(true);
   };
 
-  const handleExternalRoute = (url: string) => {
-    if (url) {
-      window.open(url, '_blank', 'noopener,noreferrer');
-    }
+  const openViewQrDialog = (link: Link) => {
+    setCurrentLink(link);
+    setQrCodeUrl(link.shortUrl);
+    setIsViewQrDialogOpen(true);
   };
 
   const getStatusBadge = (status: string) => {
@@ -355,12 +334,8 @@ export default function LinkTableClient({ initialLinks }: Props) {
         <CardHeader className="pb-6">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
-              <CardTitle className="text-2xl font-bold text-gray-800">
-                Link Management
-              </CardTitle>
-              <p className="text-gray-600 mt-2">
-                Shorten, track, and manage your links
-              </p>
+              <CardTitle className="text-2xl font-bold text-gray-800">Link Management</CardTitle>
+              <p className="text-gray-600 mt-2">Shorten, track, and manage your links</p>
             </div>
             <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
               <div className="relative w-full sm:w-64">
@@ -375,7 +350,10 @@ export default function LinkTableClient({ initialLinks }: Props) {
                   className="pl-10 border-gray-200 focus:border-green-500"
                 />
               </div>
-              <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+              <Dialog open={isCreateDialogOpen} onOpenChange={(open) => {
+                setIsCreateDialogOpen(open);
+                if (!open) setQrCodeUrl(null); // Reset QR code when dialog closes
+              }}>
                 <DialogTrigger asChild>
                   <Button className="bg-green-600 hover:bg-green-700 text-white shadow-md">
                     <Plus className="w-4 h-4 mr-2" />
@@ -384,91 +362,104 @@ export default function LinkTableClient({ initialLinks }: Props) {
                 </DialogTrigger>
                 <DialogContent className="sm:max-w-lg">
                   <DialogHeader>
-                    <DialogTitle className="text-xl font-semibold text-gray-800">Create New Short Link</DialogTitle>
+                    <DialogTitle className="text-xl font-semibold text-gray-800">
+                      Create New Short Link
+                    </DialogTitle>
                   </DialogHeader>
                   <div className="space-y-6 py-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="target_url" className="text-sm font-medium text-gray-700">
-                        Destination URL *
-                      </Label>
-                      <Input
-                        id="target_url"
-                        placeholder="https://example.com/your-long-url"
-                        value={newLinkData.target_url}
-                        onChange={(e) =>
-                          setNewLinkData({ ...newLinkData, target_url: e.target.value })
-                        }
-                        className="border-gray-200 focus:border-green-500"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="title" className="text-sm font-medium text-gray-700">
-                        Title (Optional)
-                      </Label>
-                      <Input
-                        id="title"
-                        placeholder="My awesome link"
-                        value={newLinkData.title}
-                        onChange={(e) =>
-                          setNewLinkData({ ...newLinkData, title: e.target.value })
-                        }
-                        className="border-gray-200 focus:border-green-500"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="expires_at" className="text-sm font-medium text-gray-700">
-                        Expiration
-                      </Label>
-                      <div className="flex items-center gap-2">
-                        <Select
-                          value={newLinkData.expires_at}
-                          onValueChange={(value) => setNewLinkData({
-                            ...newLinkData,
-                            expires_at: value as ExpirationOption
-                          })}
-                        >
-                          <SelectTrigger className="w-[180px] border-gray-200 focus:border-green-500">
-                            <SelectValue placeholder="Select expiration" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="1day">1 Day</SelectItem>
-                            <SelectItem value="1week">1 Week</SelectItem>
-                            <SelectItem value="1month">1 Month</SelectItem>
-                            <SelectItem value="never">Never</SelectItem>
-                            <SelectItem value="custom">Custom Date</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        {newLinkData.expires_at === 'custom' && (
-                          <Input
-                            type="date"
-                            value={newLinkData.expires_at_date}
-                            onChange={(e) => setNewLinkData({
-                              ...newLinkData,
-                              expires_at_date: e.target.value
-                            })}
-                            className="flex-1 border-gray-200 focus:border-green-500"
-                            min={format(new Date(), 'yyyy-MM-dd')}
-                          />
-                        )}
+                    {qrCodeUrl ? (
+                      <div className="flex flex-col items-center space-y-4">
+                        <p className="text-gray-700">Link created successfully! Scan or download the QR code below:</p>
+                        <div ref={qrCodeRef}>
+                          <QRCodeSVG value={qrCodeUrl} size={200} />
+                        </div>
+                        <div className="flex space-x-3">
+                          <Button
+                            onClick={downloadQrCode}
+                            className="bg-blue-600 hover:bg-blue-700 text-white"
+                          >
+                            <Download className="w-4 h-4 mr-2" />
+                            Download QR Code
+                          </Button>
+                          <Button
+                            onClick={() => {
+                              setIsCreateDialogOpen(false);
+                              setQrCodeUrl(null);
+                              setNewLinkData({
+                                customer_name: '',
+                                image: null,
+                                video: null,
+                              });
+                            }}
+                            className="bg-green-600 hover:bg-green-700 text-white"
+                          >
+                            Close
+                          </Button>
+                        </div>
                       </div>
-                    </div>
-                    {error && <p className="text-red-500 text-sm">{error}</p>}
-                  </div>
-                  <div className="flex justify-end space-x-3 pt-4">
-                    <Button
-                      variant="outline"
-                      onClick={() => setIsCreateDialogOpen(false)}
-                      className="border-gray-300 hover:bg-gray-50"
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      onClick={handleCreateLink}
-                      disabled={isLoading || !newLinkData.target_url}
-                      className="bg-green-600 hover:bg-green-700 text-white"
-                    >
-                      {isLoading ? 'Creating...' : 'Create Link'}
-                    </Button>
+                    ) : (
+                      <>
+                        <div className="space-y-2">
+                          <Label htmlFor="customer_name" className="text-sm font-medium text-gray-700">
+                            Customer Name *
+                          </Label>
+                          <Input
+                            id="customer_name"
+                            placeholder="Enter customer name"
+                            value={newLinkData.customer_name}
+                            onChange={(e) =>
+                              setNewLinkData({ ...newLinkData, customer_name: e.target.value })
+                            }
+                            className="border-gray-200 focus:border-green-500"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="image" className="text-sm font-medium text-gray-700">
+                            Image (Optional, JPEG/PNG/GIF, max 5MB)
+                          </Label>
+                          <Input
+                            id="image"
+                            type="file"
+                            accept="image/jpeg,image/png,image/gif"
+                            onChange={(e) =>
+                              setNewLinkData({ ...newLinkData, image: e.target.files?.[0] || null })
+                            }
+                            className="border-gray-200 focus:border-green-500"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="video" className="text-sm font-medium text-gray-700">
+                            Video (Optional, MP4/WebM/OGG, max 100MB)
+                          </Label>
+                          <Input
+                            id="video"
+                            type="file"
+                            accept="video/mp4,video/webm,video/ogg"
+                            onChange={(e) =>
+                              setNewLinkData({ ...newLinkData, video: e.target.files?.[0] || null })
+                            }
+                            className="border-gray-200 focus:border-green-500"
+                          />
+                        </div>
+                        {error && <p className="text-red-500 text-sm">{error}</p>}
+                        <div className="flex justify-end space-x-3 pt-4">
+                          <Button
+                            variant="outline"
+                            onClick={() => setIsCreateDialogOpen(false)}
+                            className="border-gray-300 hover:bg-gray-50"
+                          >
+                            Cancel
+                          </Button>
+                          <Button
+                            onClick={handleCreateLink}
+                            disabled={isLoading || !newLinkData.customer_name}
+                            className="bg-green-600 hover:bg-green-700 text-white"
+                          >
+                            {isLoading ? 'Creating...' : 'Create Link'}
+                          </Button>
+                        </div>
+                      </>
+                    )}
                   </div>
                 </DialogContent>
               </Dialog>
@@ -483,11 +474,12 @@ export default function LinkTableClient({ initialLinks }: Props) {
                 {searchTerm ? 'No matching links found' : 'No links created yet'}
               </h3>
               <p className="text-gray-500 mb-6">
-                {searchTerm
-                  ? 'Try adjusting your search query'
-                  : 'Get started by creating your first short link'}
+                {searchTerm ? 'Try adjusting your search query' : 'Get started by creating your first short link'}
               </p>
-              <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+              <Dialog open={isCreateDialogOpen} onOpenChange={(open) => {
+                setIsCreateDialogOpen(open);
+                if (!open) setQrCodeUrl(null);
+              }}>
                 <DialogTrigger asChild>
                   <Button className="bg-green-600 hover:bg-green-700 text-white">
                     <Plus className="w-4 h-4 mr-2" />
@@ -504,9 +496,8 @@ export default function LinkTableClient({ initialLinks }: Props) {
                     <tr>
                       <th className="text-left py-3 px-4 font-medium text-gray-700">Short URL</th>
                       <th className="text-left py-3 px-4 font-medium text-gray-700">Clicks</th>
-                      <th className="text-left py-3 px-4 font-medium text-gray-700">Original URL</th>
+                      <th className="text-left py-3 px-4 font-medium text-gray-700">Customer Name</th>
                       <th className="text-left py-3 px-4 font-medium text-gray-700">Status</th>
-                      <th className="text-left py-3 px-4 font-medium text-gray-700">Expires</th>
                       <th className="text-left py-3 px-4 font-medium text-gray-700">Created</th>
                       <th className="text-right py-3 px-4 font-medium text-gray-700">Actions</th>
                     </tr>
@@ -532,23 +523,13 @@ export default function LinkTableClient({ initialLinks }: Props) {
                         <td className="py-3 px-4">
                           <div className="flex items-center space-x-2">
                             <BarChart3 className="h-4 w-4 text-green-500" />
-                            <span className="font-semibold text-gray-900">
-                              {link.clicks.toLocaleString()}
-                            </span>
+                            <span className="font-semibold text-gray-900">{link.clicks}</span>
                           </div>
                         </td>
                         <td className="py-3 px-4">
-                          <div className="flex items-center space-x-2 max-w-xs sm:max-w-sm cursor-pointer" onClick={() => handleExternalRoute(link.target_url)}>
-                            <ExternalLink className="h-4 w-4 text-gray-400 flex-shrink-0" />
-                            <span className="truncate text-gray-600" title={link.target_url}>
-                              {link.target_url}
-                            </span>
-                          </div>
+                          <span className="text-gray-600">{link.customer_name || '-'}</span>
                         </td>
                         <td className="py-3 px-4">{getStatusBadge(link.status ?? 'active')}</td>
-                        <td className="py-3 px-4 text-gray-600">
-                          {link.expires_at}
-                        </td>
                         <td className="py-3 px-4">
                           <div className="flex items-center space-x-2">
                             <Calendar className="h-4 w-4 text-gray-400" />
@@ -563,10 +544,11 @@ export default function LinkTableClient({ initialLinks }: Props) {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="w-48">
-                              <DropdownMenuItem
-                                className="cursor-pointer"
-                                onClick={() => openEditDialog(link)}
-                              >
+                              <DropdownMenuItem className="cursor-pointer" onClick={() => openViewQrDialog(link)}>
+                                <Eye className="mr-2 h-4 w-4" />
+                                View QR Code
+                              </DropdownMenuItem>
+                              <DropdownMenuItem className="cursor-pointer" onClick={() => openEditDialog(link)}>
                                 <Edit className="mr-2 h-4 w-4" />
                                 Edit Link
                               </DropdownMenuItem>
@@ -589,8 +571,7 @@ export default function LinkTableClient({ initialLinks }: Props) {
               {/* Pagination */}
               <div className="bg-gray-50 px-4 py-3 border-t border-gray-200 flex flex-col sm:flex-row justify-between items-center gap-4">
                 <div className="text-sm text-gray-600">
-                  Showing {startIndex + 1} to {Math.min(endIndex, filteredLinks.length)} of{' '}
-                  {filteredLinks.length} links
+                  Showing {startIndex + 1} to {Math.min(endIndex, filteredLinks.length)} of {filteredLinks.length} links
                 </div>
                 <div className="flex items-center gap-2">
                   <Button
@@ -621,10 +602,9 @@ export default function LinkTableClient({ initialLinks }: Props) {
                           variant={currentPage === pageNum ? 'default' : 'outline'}
                           size="sm"
                           onClick={() => setCurrentPage(pageNum)}
-                          className={`w-10 h-10 ${currentPage === pageNum
-                            ? 'bg-green-600 text-white'
-                            : 'border-gray-300 hover:bg-green-50'
-                            }`}
+                          className={`w-10 h-10 ${
+                            currentPage === pageNum ? 'bg-green-600 text-white' : 'border-gray-300 hover:bg-green-50'
+                          }`}
                         >
                           {pageNum}
                         </Button>
@@ -655,69 +635,16 @@ export default function LinkTableClient({ initialLinks }: Props) {
           </DialogHeader>
           <div className="space-y-6 py-4">
             <div className="space-y-2">
-              <Label htmlFor="edit-target_url" className="text-sm font-medium text-gray-700">
-                Destination URL *
+              <Label htmlFor="edit-customer_name" className="text-sm font-medium text-gray-700">
+                Customer Name *
               </Label>
               <Input
-                id="edit-target_url"
-                placeholder="https://example.com/your-long-url"
-                value={newLinkData.target_url}
-                onChange={(e) =>
-                  setNewLinkData({ ...newLinkData, target_url: e.target.value })
-                }
+                id="edit-customer_name"
+                placeholder="Enter customer name"
+                value={newLinkData.customer_name}
+                onChange={(e) => setNewLinkData({ ...newLinkData, customer_name: e.target.value })}
                 className="border-gray-200 focus:border-green-500"
               />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-title" className="text-sm font-medium text-gray-700">
-                Title
-              </Label>
-              <Input
-                id="edit-title"
-                placeholder="My awesome link"
-                value={newLinkData.title}
-                onChange={(e) =>
-                  setNewLinkData({ ...newLinkData, title: e.target.value })
-                }
-                className="border-gray-200 focus:border-green-500"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-expires_at" className="text-sm font-medium text-gray-700">
-                Expiration
-              </Label>
-              <div className="flex items-center gap-2">
-                <Select
-                  value={newLinkData.expires_at}
-                  onValueChange={(value) => setNewLinkData({
-                    ...newLinkData,
-                    expires_at: value as ExpirationOption
-                  })}
-                >
-                  <SelectTrigger className="w-[180px] border-gray-200 focus:border-green-500">
-                    <SelectValue placeholder="Select expiration" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="1day">1 Day</SelectItem>
-                    <SelectItem value="1week">1 Week</SelectItem>
-                    <SelectItem value="1month">1 Month</SelectItem>
-                    <SelectItem value="never">Never</SelectItem>
-                    <SelectItem value="custom">Custom Date</SelectItem>
-                  </SelectContent>
-                </Select>
-                {newLinkData.expires_at === 'custom' && (
-                  <Input
-                    type="date"
-                    value={newLinkData.expires_at_date}
-                    onChange={(e) => setNewLinkData({
-                      ...newLinkData,
-                      expires_at_date: e.target.value
-                    })}
-                    className="flex-1 border-gray-200 focus:border-green-500"
-                    min={format(new Date(), 'yyyy-MM-dd')}
-                  />
-                )}
-              </div>
             </div>
             {error && <p className="text-red-500 text-sm">{error}</p>}
           </div>
@@ -731,11 +658,45 @@ export default function LinkTableClient({ initialLinks }: Props) {
             </Button>
             <Button
               onClick={handleUpdateLink}
-              disabled={isLoading || !newLinkData.target_url}
+              disabled={isLoading || !newLinkData.customer_name}
               className="bg-green-600 hover:bg-green-700 text-white"
             >
               {isLoading ? 'Saving...' : 'Save Changes'}
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* View QR Code Dialog */}
+      <Dialog open={isViewQrDialogOpen} onOpenChange={setIsViewQrDialogOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-semibold text-gray-800">QR Code</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col items-center space-y-4 py-4">
+            <p className="text-gray-700">Scan or download the QR code for {currentLink?.customer_name || 'link'}:</p>
+            <div ref={qrCodeRef}>
+              <QRCodeSVG value={qrCodeUrl || ''} size={200} />
+            </div>
+            <div className="flex space-x-3">
+              <Button
+                onClick={downloadQrCode}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Download QR Code
+              </Button>
+              <Button
+                onClick={() => {
+                  setIsViewQrDialogOpen(false);
+                  setQrCodeUrl(null);
+                  setCurrentLink(null);
+                }}
+                className="bg-green-600 hover:bg-green-700 text-white"
+              >
+                Close
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const { data: links, error } = await supabase
-      .from('short_links')
+      .from('data')
       .select('*')
       .eq('user_id', session.user.id)
       .order('created_at', { ascending: false })
@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
 //     const body = await request.json()
     
 //     const { data: link, error } = await supabase
-//       .from('short_links')
+//       .from('data')
 //       .insert({
 //         ...body,
 //         user_id: session.user.id
@@ -83,7 +83,7 @@ export async function PUT(request: NextRequest) {
 
     // Verify link ownership
     const { data: existingLink, error: fetchError } = await supabase
-      .from('short_links')
+      .from('data')
       .select('*')
       .eq('id', id)
       .single();
@@ -160,7 +160,7 @@ export async function PUT(request: NextRequest) {
     };
 
     const { data: updatedLink, error } = await supabase
-      .from('short_links')
+      .from('data')
       .update(updates)
       .eq('id', id)
       .select()
@@ -194,7 +194,7 @@ export async function DELETE(request: NextRequest) {
     
     // Verify link ownership
     const { data: existingLink, error: fetchError } = await supabase
-      .from('short_links')
+      .from('data')
       .select('*')
       .eq('id', id)
       .single()
@@ -207,7 +207,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     const { error } = await supabase
-      .from('short_links')
+      .from('data')
       .delete()
       .eq('id', id)
 
