@@ -26,7 +26,7 @@ function withCors(response: NextResponse) {
 
 type RequestBody = {
   customer_name: string;
-  image?: File;
+  mind_file?: File;
   video?: File;
 };
 
@@ -47,7 +47,7 @@ export async function GET(req: NextRequest) {
 
   const { data, error } = await supabase
     .from('data')
-    .select('image_url, video_url, title')
+    .select('image_url, video_url, customer_name')
     .eq('slug', slug)
     .single();
 
@@ -58,8 +58,8 @@ export async function GET(req: NextRequest) {
   }
 
   return withCors(NextResponse.json({
-    customer_name: data.title,
-    image_url: data.image_url,
+    customer_name: data.customer_name,
+    mind_file_url: data.image_url,
     video_url: data.video_url
   }));
 }
@@ -75,7 +75,7 @@ export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData();
     const customer_name = formData.get('customer_name') as string;
-    const image = formData.get('image') as File | null;
+    const mind_file = formData.get('mind_file') as File | null;
     const video = formData.get('video') as File | null;
 
     // Basic validation
@@ -85,25 +85,30 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    let image_url = '';
+    let mind_file_url = '';
     let video_url = '';
 
     // Use user_id as folder name, fallback to 'anonymous' if not authenticated
     const folderName = userId || 'anonymous';
 
-    // Upload image to Cloudinary
-    if (image) {
-      const imageBuffer = Buffer.from(await image.arrayBuffer());
-      const imageUpload = await new Promise((resolve, reject) => {
+    // Upload mind file to Cloudinary
+    if (mind_file) {
+      if (!mind_file.name.endsWith('.mind')) {
+        return withCors(
+          NextResponse.json({ error: 'Invalid file format. Only .mind files are allowed' }, { status: 400 })
+        );
+      }
+      const mindFileBuffer = Buffer.from(await mind_file.arrayBuffer());
+      const mindFileUpload = await new Promise((resolve, reject) => {
         cloudinary.v2.uploader.upload_stream(
-          { resource_type: 'image', folder: folderName },
+          { resource_type: 'raw', folder: folderName },
           (error, result) => {
             if (error) reject(error);
             else resolve(result);
           }
-        ).end(imageBuffer);
+        ).end(mindFileBuffer);
       });
-      image_url = (imageUpload as any).secure_url;
+      mind_file_url = (mindFileUpload as any).secure_url;
     }
 
     // Upload video to Cloudinary
@@ -129,9 +134,9 @@ export async function POST(req: NextRequest) {
       .from('data')
       .insert({
         slug,
-        image_url: image_url || '',
+        image_url: mind_file_url || '',
         video_url: video_url || '',
-        title: customer_name,
+        customer_name: customer_name,
         user_id: userId,
         created_at: new Date().toISOString(),
         scans: 0
@@ -156,7 +161,7 @@ export async function POST(req: NextRequest) {
           shortUrl: `${process.env.NEXT_PUBLIC_BASE_URL}/${slug}`,
           slug,
           customer_name,
-          image_url,
+          mind_file_url,
           video_url,
           isAuthenticated: !!userId
         },

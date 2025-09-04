@@ -43,7 +43,7 @@ type Link = {
   customer_name?: string;
   created_at: string;
   status: 'active' | 'paused' | 'inactive';
-  image?: string | null;
+  mind_file?: string | null;
   video?: string | null;
 };
 
@@ -64,7 +64,7 @@ export default function LinkTableClient({ initialLinks }: Props) {
   const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
   const [newLinkData, setNewLinkData] = useState({
     customer_name: '',
-    image: null as File | null,
+    mind_file: null as File | null,
     video: null as File | null,
   });
   const qrCodeRef = useRef<any>(null);
@@ -154,17 +154,16 @@ export default function LinkTableClient({ initialLinks }: Props) {
       return;
     }
 
-    // Validate image file
-    if (newLinkData.image) {
-      const validImageTypes = ['image/jpeg', 'image/png', 'image/gif'];
-      if (!validImageTypes.includes(newLinkData.image.type)) {
-        setError('Please upload a valid image (JPEG, PNG, or GIF)');
+    // Validate mind file
+    if (newLinkData.mind_file) {
+      if (!newLinkData.mind_file.name.endsWith('.mind')) {
+        setError('Please upload a valid .mind file');
         setIsLoading(false);
         return;
       }
-      if (newLinkData.image.size > 5 * 1024 * 1024) {
+      if (newLinkData.mind_file.size > 5 * 1024 * 1024) {
         // 5MB limit
-        setError('Image size must be less than 5MB');
+        setError('Mind file size must be less than 5MB');
         setIsLoading(false);
         return;
       }
@@ -189,10 +188,10 @@ export default function LinkTableClient({ initialLinks }: Props) {
     try {
       const formData = new FormData();
       formData.append('customer_name', newLinkData.customer_name);
-      if (newLinkData.image) formData.append('image', newLinkData.image);
+      if (newLinkData.mind_file) formData.append('mind_file', newLinkData.mind_file);
       if (newLinkData.video) formData.append('video', newLinkData.video);
 
-      const response = await fetch('/api/links', {
+      const response = await fetch('/api', {
         method: 'POST',
         body: formData,
       });
@@ -210,7 +209,7 @@ export default function LinkTableClient({ initialLinks }: Props) {
         status: 'active',
         clicks: 0,
         customer_name: data.customer_name,
-        image: data.image_url || null,
+        mind_file: data.mind_file_url || null,
         video: data.video_url || null,
       };
 
@@ -305,7 +304,7 @@ export default function LinkTableClient({ initialLinks }: Props) {
     setCurrentLink(link);
     setNewLinkData({
       customer_name: link.customer_name || '',
-      image: null,
+      mind_file: null,
       video: null,
     });
     setIsEditDialogOpen(true);
@@ -387,7 +386,7 @@ export default function LinkTableClient({ initialLinks }: Props) {
                               setQrCodeUrl(null);
                               setNewLinkData({
                                 customer_name: '',
-                                image: null,
+                                mind_file: null,
                                 video: null,
                               });
                             }}
@@ -414,15 +413,15 @@ export default function LinkTableClient({ initialLinks }: Props) {
                           />
                         </div>
                         <div className="space-y-2">
-                          <Label htmlFor="image" className="text-sm font-medium text-gray-700">
-                            Image (Optional, JPEG/PNG/GIF, max 5MB)
+                          <Label htmlFor="mind_file" className="text-sm font-medium text-gray-700">
+                            Mind File (Optional, .mind, max 5MB)
                           </Label>
                           <Input
-                            id="image"
+                            id="mind_file"
                             type="file"
-                            accept="image/jpeg,image/png,image/gif"
+                            accept=".mind"
                             onChange={(e) =>
-                              setNewLinkData({ ...newLinkData, image: e.target.files?.[0] || null })
+                              setNewLinkData({ ...newLinkData, mind_file: e.target.files?.[0] || null })
                             }
                             className="border-gray-200 focus:border-green-500"
                           />
