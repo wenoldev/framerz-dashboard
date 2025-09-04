@@ -84,14 +84,14 @@ export default function LinkTableClient({ initialLinks }: Props) {
           return {
             ...link,
             created_at: isValidDate(created_at) ? format(created_at, 'MMM d, yyyy') : 'Invalid date',
-            shortUrl: link.shortUrl || `${process.env.NEXT_PUBLIC_BASE_URL}/${link.slug}`,
+            shortUrl: link.shortUrl || `${process.env.NEXT_PUBLIC_MAIN_URL}?f=${link.slug}`,
           };
         } catch (error) {
           console.error('Error formatting dates for link:', link.id, error);
           return {
             ...link,
             created_at: 'Invalid date',
-            shortUrl: link.shortUrl || `${process.env.NEXT_PUBLIC_BASE_URL}/${link.slug}`,
+            shortUrl: link.shortUrl || `${process.env.NEXT_PUBLIC_MAIN_URL}?f=${link.slug}`,
           };
         }
       })
@@ -205,7 +205,7 @@ export default function LinkTableClient({ initialLinks }: Props) {
       const data = await response.json();
       const formattedLink = {
         ...data,
-        shortUrl: `${process.env.NEXT_PUBLIC_BASE_URL}/${data.slug}`,
+        shortUrl: `${process.env.NEXT_PUBLIC_MAIN_URL}?f=${data.slug}`,
         created_at: format(new Date(), 'MMM d, yyyy'),
         status: 'active',
         clicks: 0,
@@ -258,7 +258,7 @@ export default function LinkTableClient({ initialLinks }: Props) {
         link.id === currentLink.id
           ? {
               ...data,
-              shortUrl: `${process.env.NEXT_PUBLIC_BASE_URL}/${data.slug}`,
+              shortUrl: `${process.env.NEXT_PUBLIC_MAIN_URL}?f=${data.slug}`,
               created_at: format(new Date(data.created_at), 'MMM d, yyyy'),
             }
           : link
