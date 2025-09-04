@@ -18,7 +18,7 @@ export default function RightSide() {
       </div>
 
       <p className="text-sm text-gray-600 max-w-xs">
-        Power your links, QR Codes, and landing pages with Bitly's Connections Platform
+        Power your links, QR Codes, and landing pages with Bitly&apos;s Connections Platform
       </p>
     </div>
   )
