@@ -46,6 +46,7 @@ type Link = {
   status: 'active' | 'paused' | 'inactive';
   mind_file?: string | null;
   video?: string | null;
+  thumbnail?: string | null; // Added for thumbnail support
 };
 
 type Props = {
@@ -67,6 +68,7 @@ export default function LinkTableClient({ initialLinks }: Props) {
     customer_name: '',
     mind_file: null as File | null,
     video: null as File | null,
+    thumbnail: null as File | null, // Added thumbnail field
   });
   const qrCodeRef = useRef<any>(null);
   const itemsPerPage = 8;
@@ -186,11 +188,28 @@ export default function LinkTableClient({ initialLinks }: Props) {
       }
     }
 
+    // Validate thumbnail file (new)
+    if (newLinkData.thumbnail) {
+      const validImageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+      if (!validImageTypes.includes(newLinkData.thumbnail.type)) {
+        setError('Please upload a valid image thumbnail (JPEG, PNG, GIF, WebP)');
+        setIsLoading(false);
+        return;
+      }
+      if (newLinkData.thumbnail.size > 2 * 1024 * 1024) {
+        // 2MB limit
+        setError('Thumbnail size must be less than 2MB');
+        setIsLoading(false);
+        return;
+      }
+    }
+
     try {
       const formData = new FormData();
       formData.append('customer_name', newLinkData.customer_name);
       if (newLinkData.mind_file) formData.append('mind_file', newLinkData.mind_file);
       if (newLinkData.video) formData.append('video', newLinkData.video);
+      if (newLinkData.thumbnail) formData.append('thumbnail', newLinkData.thumbnail); // Added thumbnail
 
       const response = await fetch('/api', {
         method: 'POST',
@@ -212,6 +231,7 @@ export default function LinkTableClient({ initialLinks }: Props) {
         customer_name: data.customer_name,
         mind_file: data.mind_file_url || null,
         video: data.video_url || null,
+        thumbnail: data.thumbnail_url || null, // Added thumbnail
       };
 
       setLinks((prev) => [formattedLink, ...prev]);
@@ -307,6 +327,7 @@ export default function LinkTableClient({ initialLinks }: Props) {
       customer_name: link.customer_name || '',
       mind_file: null,
       video: null,
+      thumbnail: null, // Added
     });
     setIsEditDialogOpen(true);
   };
@@ -389,6 +410,7 @@ export default function LinkTableClient({ initialLinks }: Props) {
                                 customer_name: '',
                                 mind_file: null,
                                 video: null,
+                                thumbnail: null, // Added
                               });
                             }}
                             className="bg-green-600 hover:bg-green-700 text-white"
@@ -437,6 +459,21 @@ export default function LinkTableClient({ initialLinks }: Props) {
                             accept="video/mp4,video/webm,video/ogg"
                             onChange={(e) =>
                               setNewLinkData({ ...newLinkData, video: e.target.files?.[0] || null })
+                            }
+                            className="border-gray-200 focus:border-green-500"
+                          />
+                        </div>
+                        {/* New thumbnail input */}
+                        <div className="space-y-2">
+                          <Label htmlFor="thumbnail" className="text-sm font-medium text-gray-700">
+                            Thumbnail Image (Optional, JPEG/PNG/GIF/WebP, max 2MB)
+                          </Label>
+                          <Input
+                            id="thumbnail"
+                            type="file"
+                            accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                            onChange={(e) =>
+                              setNewLinkData({ ...newLinkData, thumbnail: e.target.files?.[0] || null })
                             }
                             className="border-gray-200 focus:border-green-500"
                           />

@@ -29,6 +29,7 @@ type RequestBody = {
   customer_name: string;
   mind_file?: File;
   video?: File;
+  thumbnail?: File; // Added for thumbnail support
 };
 
 // Handle OPTIONS for preflight
@@ -48,7 +49,7 @@ export async function GET(req: NextRequest) {
 
   const { data, error } = await supabase
     .from('data')
-    .select('image_url, video_url, customer_name')
+    .select('image_url, video_url, thumbnail_url, customer_name') // Added thumbnail_url
     .eq('slug', slug)
     .single();
 
@@ -61,7 +62,8 @@ export async function GET(req: NextRequest) {
   return withCors(NextResponse.json({
     customer_name: data.customer_name,
     mind_file_url: data.image_url,
-    video_url: data.video_url
+    video_url: data.video_url,
+    thumbnail_url: data.thumbnail_url, // Added thumbnail_url
   }));
 }
 
@@ -78,6 +80,7 @@ export async function POST(req: NextRequest) {
     const customer_name = formData.get('customer_name') as string;
     const mind_file = formData.get('mind_file') as File | null;
     const video = formData.get('video') as File | null;
+    const thumbnail = formData.get('thumbnail') as File | null; // Added thumbnail
 
     // Basic validation
     if (!customer_name) {
@@ -88,6 +91,7 @@ export async function POST(req: NextRequest) {
 
     let mind_file_url = '';
     let video_url = '';
+    let thumbnail_url = ''; // Added thumbnail_url
 
     // Use user_id as folder name, fallback to 'anonymous' if not authenticated
     const folderName = userId || 'anonymous';
@@ -127,6 +131,32 @@ export async function POST(req: NextRequest) {
       video_url = (videoUpload as any).secure_url;
     }
 
+    // Upload thumbnail to Cloudinary (new)
+    if (thumbnail) {
+      const validImageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+      if (!validImageTypes.includes(thumbnail.type)) {
+        return withCors(
+          NextResponse.json({ error: 'Invalid thumbnail format. Only JPEG, PNG, GIF, WebP are allowed' }, { status: 400 })
+        );
+      }
+      if (thumbnail.size > 2 * 1024 * 1024) { // 2MB limit
+        return withCors(
+          NextResponse.json({ error: 'Thumbnail size must be less than 2MB' }, { status: 400 })
+        );
+      }
+      const thumbnailBuffer = Buffer.from(await thumbnail.arrayBuffer());
+      const thumbnailUpload = await new Promise((resolve, reject) => {
+        cloudinary.v2.uploader.upload_stream(
+          { resource_type: 'image', folder: folderName, transformation: [{ width: 400, height: 300, crop: 'fill' }] }, // Optional: auto-resize thumbnail
+          (error, result) => {
+            if (error) reject(error);
+            else resolve(result);
+          }
+        ).end(thumbnailBuffer);
+      });
+      thumbnail_url = (thumbnailUpload as any).secure_url;
+    }
+
     // Generate random slug
     const slug = Math.random().toString(36).substring(2, 8);
 
@@ -137,6 +167,7 @@ export async function POST(req: NextRequest) {
         slug,
         image_url: mind_file_url || '',
         video_url: video_url || '',
+        thumbnail_url: thumbnail_url || '', // Added thumbnail_url
         customer_name: customer_name,
         user_id: userId,
         created_at: new Date().toISOString(),
@@ -164,6 +195,7 @@ export async function POST(req: NextRequest) {
           customer_name,
           mind_file_url,
           video_url,
+          thumbnail_url, // Added thumbnail_url
           isAuthenticated: !!userId
         },
         { status: 201 }
