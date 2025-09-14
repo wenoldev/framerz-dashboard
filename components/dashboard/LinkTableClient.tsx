@@ -70,6 +70,7 @@ export default function LinkTableClient({ initialLinks }: Props) {
     video: null as File | null,
     thumbnail: null as File | null, // Added thumbnail field
   });
+  const isLocal = process.env.ENVIRONMENT === 'local'
   const qrCodeRef = useRef<any>(null);
   const itemsPerPage = 8;
 
@@ -376,7 +377,7 @@ export default function LinkTableClient({ initialLinks }: Props) {
                 if (!open) setQrCodeUrl(null); // Reset QR code when dialog closes
               }}>
                 <DialogTrigger asChild>
-                  <Button className="bg-green-600 hover:bg-green-700 text-white shadow-md">
+                  <Button className={`bg-green-600 hover:bg-green-700 text-white shadow-md ${isLocal ? 'flex' : 'hidden'}`}>
                     <Plus className="w-4 h-4 mr-2" />
                     Create New Link
                   </Button>
