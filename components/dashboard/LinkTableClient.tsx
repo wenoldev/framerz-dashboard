@@ -70,7 +70,6 @@ export default function LinkTableClient({ initialLinks }: Props) {
     video: null as File | null,
     thumbnail: null as File | null, // Added thumbnail field
   });
-  const isLocal = process.env.ENVIRONMENT === 'local'
   const qrCodeRef = useRef<any>(null);
   const itemsPerPage = 8;
 
@@ -147,6 +146,54 @@ export default function LinkTableClient({ initialLinks }: Props) {
     }
   };
 
+  const uploadFile = async (file: File | null, fileType: 'mind_file' | 'video' | 'thumbnail') => {
+    if (!file) return null;
+
+    const chunkSize = 5 * 1024 * 1024; // 5MB chunks
+    const totalChunks = Math.ceil(file.size / chunkSize);
+    const uploadId = crypto.randomUUID();
+    let uploadedChunks = 0;
+    const toastId = toast.loading(`Uploading ${fileType} 0%`);
+    let url: string | null = null;
+
+    for (let index = 0; index < totalChunks; index++) {
+      const start = index * chunkSize;
+      const end = Math.min(start + chunkSize, file.size);
+      const chunk = file.slice(start, end);
+
+      const formData = new FormData();
+      formData.append('chunk', chunk, file.name);
+      formData.append('index', index.toString());
+      formData.append('total', totalChunks.toString());
+      formData.append('uploadId', uploadId);
+      formData.append('fileName', file.name);
+      formData.append('fileType', fileType);
+
+      const response = await fetch('/api', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        toast.error(`Failed to upload chunk ${index + 1} for ${fileType}`);
+        throw new Error(`Chunk upload failed for ${fileType}`);
+      }
+
+      const data = await response.json();
+
+      if (data.status === 'complete') {
+        url = data.url;
+      }
+
+      uploadedChunks++;
+      const progress = Math.round((uploadedChunks / totalChunks) * 100);
+      toast.loading(`Uploading ${fileType} ${progress}%`, { id: toastId });
+    }
+
+    toast.dismiss(toastId);
+    return url;
+  };
+
   const handleCreateLink = async () => {
     setIsLoading(true);
     setError('');
@@ -206,15 +253,23 @@ export default function LinkTableClient({ initialLinks }: Props) {
     }
 
     try {
-      const formData = new FormData();
-      formData.append('customer_name', newLinkData.customer_name);
-      if (newLinkData.mind_file) formData.append('mind_file', newLinkData.mind_file);
-      if (newLinkData.video) formData.append('video', newLinkData.video);
-      if (newLinkData.thumbnail) formData.append('thumbnail', newLinkData.thumbnail); // Added thumbnail
+      // Upload files in chunks
+      const mind_file_url = await uploadFile(newLinkData.mind_file, 'mind_file');
+      const video_url = await uploadFile(newLinkData.video, 'video');
+      const thumbnail_url = await uploadFile(newLinkData.thumbnail, 'thumbnail');
 
+      // Now create the link with the uploaded URLs
       const response = await fetch('/api', {
         method: 'POST',
-        body: formData,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          customer_name: newLinkData.customer_name,
+          mind_file_url,
+          video_url,
+          thumbnail_url,
+        }),
       });
 
       if (!response.ok) {
@@ -377,7 +432,7 @@ export default function LinkTableClient({ initialLinks }: Props) {
                 if (!open) setQrCodeUrl(null); // Reset QR code when dialog closes
               }}>
                 <DialogTrigger asChild>
-                  <Button className={`bg-green-600 hover:bg-green-700 text-white shadow-md ${isLocal ? 'flex' : 'hidden'}`}>
+                  <Button className="bg-green-600 hover:bg-green-700 text-white shadow-md">
                     <Plus className="w-4 h-4 mr-2" />
                     Create New Link
                   </Button>
