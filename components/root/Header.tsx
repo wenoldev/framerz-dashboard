@@ -9,11 +9,11 @@ export async function Header() {
   const session = await getSession()
   
   return (
-    <header className="border-b">
-      <div className="container mx-auto flex justify-between items-center py-4 px-4">
+    <header className="border-b z-10">
+      <div className="mx-auto flex justify-between items-center py-4 px-4">
         <Link href="/" className="font-bold text-xl flex items-center">
           <span className="w-2 h-2 bg-black mr-2 font-mono"></span>
-          Slug.gy
+          Framerz
         </Link>
         <nav className="flex items-center space-x-6">
           {/* <Link href="/pricing" className="text-sm hover:text-blue-600 transition-colors">

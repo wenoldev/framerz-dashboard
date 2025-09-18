@@ -397,7 +397,7 @@ export default function LinkTableClient({ initialLinks }: Props) {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'active':
-        return <Badge className="bg-green-100 text-green-800 border-green-200">Active</Badge>;
+        return <Badge className="bg-purple-100 text-purple-800 border-purple-200">Active</Badge>;
       case 'paused':
         return <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200">Paused</Badge>;
       default:
@@ -407,7 +407,7 @@ export default function LinkTableClient({ initialLinks }: Props) {
 
   return (
     <div className="max-w-7xl mx-auto p-4 sm:p-6 space-y-6">
-      <Card className="shadow-lg border-0 bg-gradient-to-r from-green-50 to-gray-50">
+      <Card className="shadow-lg border-0 bg-gradient-to-r from-purple-50 to-gray-50">
         <CardHeader className="pb-6">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
@@ -424,7 +424,7 @@ export default function LinkTableClient({ initialLinks }: Props) {
                     setSearchTerm(e.target.value);
                     setCurrentPage(1);
                   }}
-                  className="pl-10 border-gray-200 focus:border-green-500"
+                  className="pl-10 border-gray-200 focus:border-purple-500"
                 />
               </div>
               <Dialog open={isCreateDialogOpen} onOpenChange={(open) => {
@@ -432,7 +432,7 @@ export default function LinkTableClient({ initialLinks }: Props) {
                 if (!open) setQrCodeUrl(null); // Reset QR code when dialog closes
               }}>
                 <DialogTrigger asChild>
-                  <Button className="bg-green-600 hover:bg-green-700 text-white shadow-md">
+                  <Button className="bg-purple-600 hover:bg-purple-700 text-white shadow-md">
                     <Plus className="w-4 h-4 mr-2" />
                     Create New Link
                   </Button>
@@ -469,7 +469,7 @@ export default function LinkTableClient({ initialLinks }: Props) {
                                 thumbnail: null, // Added
                               });
                             }}
-                            className="bg-green-600 hover:bg-green-700 text-white"
+                            className="bg-purple-600 hover:bg-purple-700 text-white"
                           >
                             Close
                           </Button>
@@ -488,7 +488,7 @@ export default function LinkTableClient({ initialLinks }: Props) {
                             onChange={(e) =>
                               setNewLinkData({ ...newLinkData, customer_name: e.target.value })
                             }
-                            className="border-gray-200 focus:border-green-500"
+                            className="border-gray-200 focus:border-purple-500"
                           />
                         </div>
                         <div className="space-y-2">
@@ -502,7 +502,7 @@ export default function LinkTableClient({ initialLinks }: Props) {
                             onChange={(e) =>
                               setNewLinkData({ ...newLinkData, mind_file: e.target.files?.[0] || null })
                             }
-                            className="border-gray-200 focus:border-green-500"
+                            className="border-gray-200 focus:border-purple-500"
                           />
                         </div>
                         <div className="space-y-2">
@@ -516,7 +516,7 @@ export default function LinkTableClient({ initialLinks }: Props) {
                             onChange={(e) =>
                               setNewLinkData({ ...newLinkData, video: e.target.files?.[0] || null })
                             }
-                            className="border-gray-200 focus:border-green-500"
+                            className="border-gray-200 focus:border-purple-500"
                           />
                         </div>
                         {/* New thumbnail input */}
@@ -531,7 +531,7 @@ export default function LinkTableClient({ initialLinks }: Props) {
                             onChange={(e) =>
                               setNewLinkData({ ...newLinkData, thumbnail: e.target.files?.[0] || null })
                             }
-                            className="border-gray-200 focus:border-green-500"
+                            className="border-gray-200 focus:border-purple-500"
                           />
                         </div>
                         {error && <p className="text-red-500 text-sm">{error}</p>}
@@ -546,7 +546,7 @@ export default function LinkTableClient({ initialLinks }: Props) {
                           <Button
                             onClick={handleCreateLink}
                             disabled={isLoading || !newLinkData.customer_name}
-                            className="bg-green-600 hover:bg-green-700 text-white"
+                            className="bg-purple-600 hover:bg-purple-700 text-white"
                           >
                             {isLoading ? 'Creating...' : 'Create Link'}
                           </Button>
@@ -574,7 +574,7 @@ export default function LinkTableClient({ initialLinks }: Props) {
                 if (!open) setQrCodeUrl(null);
               }}>
                 <DialogTrigger asChild>
-                  <Button className="bg-green-600 hover:bg-green-700 text-white">
+                  <Button className="bg-purple-600 hover:bg-purple-700 text-white">
                     <Plus className="w-4 h-4 mr-2" />
                     Create Link
                   </Button>
@@ -600,14 +600,14 @@ export default function LinkTableClient({ initialLinks }: Props) {
                       <tr key={index} className="hover:bg-gray-50 transition-colors">
                         <td className="py-3 px-4">
                           <div className="flex items-center space-x-3">
-                            <code className="text-green-600 bg-green-50 px-2 py-1 rounded-full text-sm font-medium">
+                            <code className="text-purple-600 bg-purple-50 px-2 py-1 rounded-full text-sm font-medium">
                               {link.shortUrl}
                             </code>
                             <Button
                               variant="ghost"
                               size="sm"
                               onClick={() => copyToClipboard(link.shortUrl)}
-                              className="h-8 w-8 p-0 hover:bg-green-100"
+                              className="h-8 w-8 p-0 hover:bg-purple-100"
                             >
                               <Copy className="h-4 w-4" />
                             </Button>
@@ -615,7 +615,7 @@ export default function LinkTableClient({ initialLinks }: Props) {
                         </td>
                         <td className="py-3 px-4">
                           <div className="flex items-center space-x-2">
-                            <BarChart3 className="h-4 w-4 text-green-500" />
+                            <BarChart3 className="h-4 w-4 text-purple-500" />
                             <span className="font-semibold text-gray-900">{link.clicks}</span>
                           </div>
                         </td>
@@ -672,7 +672,7 @@ export default function LinkTableClient({ initialLinks }: Props) {
                     size="sm"
                     onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
                     disabled={currentPage === 1}
-                    className="border-gray-300 hover:bg-green-50"
+                    className="border-gray-300 hover:bg-purple-50"
                   >
                     Previous
                   </Button>
@@ -696,7 +696,7 @@ export default function LinkTableClient({ initialLinks }: Props) {
                           size="sm"
                           onClick={() => setCurrentPage(pageNum)}
                           className={`w-10 h-10 ${
-                            currentPage === pageNum ? 'bg-green-600 text-white' : 'border-gray-300 hover:bg-green-50'
+                            currentPage === pageNum ? 'bg-purple-600 text-white' : 'border-gray-300 hover:bg-purple-50'
                           }`}
                         >
                           {pageNum}
@@ -709,7 +709,7 @@ export default function LinkTableClient({ initialLinks }: Props) {
                     size="sm"
                     onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
                     disabled={currentPage === totalPages}
-                    className="border-gray-300 hover:bg-green-50"
+                    className="border-gray-300 hover:bg-purple-50"
                   >
                     Next
                   </Button>
@@ -736,7 +736,7 @@ export default function LinkTableClient({ initialLinks }: Props) {
                 placeholder="Enter customer name"
                 value={newLinkData.customer_name}
                 onChange={(e) => setNewLinkData({ ...newLinkData, customer_name: e.target.value })}
-                className="border-gray-200 focus:border-green-500"
+                className="border-gray-200 focus:border-purple-500"
               />
             </div>
             {error && <p className="text-red-500 text-sm">{error}</p>}
@@ -752,7 +752,7 @@ export default function LinkTableClient({ initialLinks }: Props) {
             <Button
               onClick={handleUpdateLink}
               disabled={isLoading || !newLinkData.customer_name}
-              className="bg-green-600 hover:bg-green-700 text-white"
+              className="bg-purple-600 hover:bg-purple-700 text-white"
             >
               {isLoading ? 'Saving...' : 'Save Changes'}
             </Button>
@@ -785,7 +785,7 @@ export default function LinkTableClient({ initialLinks }: Props) {
                   setQrCodeUrl(null);
                   setCurrentLink(null);
                 }}
-                className="bg-green-600 hover:bg-green-700 text-white"
+                className="bg-purple-600 hover:bg-purple-700 text-white"
               >
                 Close
               </Button>
