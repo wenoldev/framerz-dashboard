@@ -31,7 +31,7 @@ export async function Header() {
             <Dialog>
               <form>
                 <DialogTrigger asChild>
-                  <Button>Get Started</Button>
+                  <Button className='cursor-pointer'>Get Started</Button>
                 </DialogTrigger>
                 <DialogContent className="sm:max-w-[425px]">
                   <DialogHeader className='sr-only'>

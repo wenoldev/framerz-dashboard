@@ -49,7 +49,7 @@ export default function StunningARLanding() {
   return (
     <div className="relative overflow-hidden bg-gradient-to-br from-slate-50 via-purple-50 to-indigo-50">
       {/* Animated Background Elements */}
-      <div className="fixed inset-0 z-0">
+      {/* <div className="fixed inset-0 z-0">
         <motion.div
           style={{
             x: mousePosition.x * 0.02,
@@ -71,7 +71,7 @@ export default function StunningARLanding() {
           }}
           className="absolute bottom-20 left-1/2 w-80 h-80 bg-gradient-to-br from-violet-300/20 to-purple-300/20 rounded-full blur-3xl"
         />
-      </div>
+      </div> */}
 
       {/* Hero Section */}
       <section className="relative z-10 min-h-screen flex items-center">
