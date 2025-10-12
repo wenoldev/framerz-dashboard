@@ -1,10 +1,10 @@
 // app/actions/links.ts
 'use server';
 
-import { createSupabaseServerClient } from '@/lib/auth';
+import { createServerSupabaseClient } from '@/lib/supabase/server';
 
 export async function getLinks(uid:string) {
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createServerSupabaseClient();
 
   const { data: links, error } = await supabase
     .from('data')

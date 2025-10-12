@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 'use client';
 import { useState } from 'react';
 import Link from 'next/link';
@@ -6,7 +7,7 @@ import { signIn, signUp, forgotPassword } from '@/lib/auth';
 import { signInWithGoogle } from '@/lib/signinWithGoogle';
 
 export default function AuthForm() {
-  const [isRegister, setIsRegister] = useState(true);
+  const [isRegister, setIsRegister] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);

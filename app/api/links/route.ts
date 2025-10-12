@@ -1,226 +1,134 @@
-import { NextResponse } from 'next/server'
-import { createSupabaseServerClient } from '@/lib/auth'
-import type { NextRequest } from 'next/server'
+import { type NextRequest, NextResponse } from "next/server"
+import cloudinary from "cloudinary"
+import { createServerSupabaseClient } from "@/lib/supabase/server"
 
-export async function GET(request: NextRequest) {
-  const supabase = await createSupabaseServerClient()
-  
-  // Get session from request cookies
-  const { data: { session }, error: authError } = await supabase.auth.getSession()
+// Configure Cloudinary
+cloudinary.v2.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+})
 
-  if (authError || !session) {
-    return NextResponse.json(
-      { error: 'Unauthorized' },
-      { status: 401 }
-    )
-  }
-
+function parseCloudinaryPublicId(url?: string | null) {
+  if (!url) return null
   try {
-    const { data: links, error } = await supabase
-      .from('data')
-      .select('*')
-      .eq('user_id', session.user.id)
-      .order('created_at', { ascending: false })
-
-    if (error) throw error
-
-    return NextResponse.json(links)
-  } catch (error) {
-    return NextResponse.json(
-      { error: 'Failed to fetch links' },
-      { status: 500 }
-    )
+    // Example: https://res.cloudinary.com/<cloud>/image/upload/v123/folder/name.ext
+    const u = new URL(url)
+    const parts = u.pathname.split("/")
+    // remove leading '' (from starting slash)
+    const filtered = parts.filter(Boolean)
+    // filtered = ["image","upload","v123","folder","name.ext"]
+    const uploadIdx = filtered.findIndex((p) => p === "upload")
+    const afterUpload = filtered.slice(uploadIdx + 1) // ["v123","folder","name.ext"]
+    if (afterUpload[0]?.startsWith("v")) afterUpload.shift()
+    const last = afterUpload.pop() // "name.ext"
+    if (!last) return afterUpload.join("/") || null
+    const [filename] = last.split(".")
+    const publicId = [...afterUpload, filename].join("/")
+    return publicId || null
+  } catch {
+    return null
   }
 }
 
-// export async function POST(request: NextRequest) {
-//   const supabase = await createSupabaseServerClient()
-//   const { data: { session }, error: authError } = await supabase.auth.getSession()
+function resourceTypeFromUrl(url?: string | null): "image" | "video" | "raw" {
+  if (!url) return "image"
+  if (url.includes("/video/")) return "video"
+  if (url.includes("/raw/")) return "raw"
+  return "image"
+}
 
-//   if (authError || !session) {
-//     return NextResponse.json(
-//       { error: 'Unauthorized' },
-//       { status: 401 }
-//     )
-//   }
-
-//   try {
-//     const body = await request.json()
-    
-//     const { data: link, error } = await supabase
-//       .from('data')
-//       .insert({
-//         ...body,
-//         user_id: session.user.id
-//       })
-//       .select()
-//       .single()
-
-//     if (error) throw error
-
-//     return NextResponse.json(link, { status: 201 })
-//   } catch (error) {
-//     return NextResponse.json(
-//       { error: 'Failed to create link' },
-//       { status: 500 }
-//     )
-//   }
-// }
-
-export async function PUT(request: NextRequest) {
-  const supabase = await createSupabaseServerClient();
-  const { data: { session }, error: authError } = await supabase.auth.getSession();
-
-  if (authError || !session) {
-    return NextResponse.json(
-      { error: 'Unauthorized' },
-      { status: 401 }
-    );
-  }
-
+async function destroyIfExists(url?: string | null) {
+  const publicId = parseCloudinaryPublicId(url)
+  if (!publicId) return
+  const resource_type = resourceTypeFromUrl(url)
   try {
-    const { id, target_url, title, expires_at } = await request.json();
-
-    // Verify link ownership
-    const { data: existingLink, error: fetchError } = await supabase
-      .from('data')
-      .select('*')
-      .eq('id', id)
-      .single();
-
-    if (fetchError || existingLink.user_id !== session.user.id) {
-      return NextResponse.json(
-        { error: 'Link not found or unauthorized' },
-        { status: 404 }
-      );
-    }
-
-    // Basic validation
-    if (!target_url) {
-      return NextResponse.json(
-        { error: 'target_url is required' },
-        { status: 400 }
-      );
-    }
-
-    // Validate URL format
-    try {
-      new URL(target_url);
-    } catch {
-      return NextResponse.json(
-        { error: 'Invalid URL format' },
-        { status: 400 }
-      );
-    }
-
-    // Parse expiration date
-    let expiresAt: string | null = null;
-    if (expires_at) {
-      if (typeof expires_at === 'string') {
-        const now = new Date();
-        
-        switch (expires_at) {
-          case '1day':
-            now.setDate(now.getDate() + 1);
-            expiresAt = now.toISOString();
-            break;
-          case '1week':
-            now.setDate(now.getDate() + 7);
-            expiresAt = now.toISOString();
-            break;
-          case '1month':
-            now.setMonth(now.getMonth() + 1);
-            expiresAt = now.toISOString();
-            break;
-          case 'never':
-            expiresAt = null;
-            break;
-          default:
-            // Try to parse as ISO date string
-            try {
-              new Date(expires_at);
-              expiresAt = expires_at;
-            } catch {
-              return NextResponse.json(
-                { error: 'Invalid expires_at format. Use preset or ISO date string' },
-                { status: 400 }
-              );
-            }
-        }
-      } else {
-        expiresAt = new Date(expires_at).toISOString();
-      }
-    }
-
-    // Prepare updates object
-    const updates = {
-      target_url,
-      title: title ?? '',
-      expires_at: expiresAt
-    };
-
-    const { data: updatedLink, error } = await supabase
-      .from('data')
-      .update(updates)
-      .eq('id', id)
-      .select()
-      .single();
-
-    if (error) throw error;
-
-    return NextResponse.json(updatedLink);
-  } catch (error) {
-    console.error('Error updating link:', error);
-    return NextResponse.json(
-      { error: 'Failed to update link' },
-      { status: 500 }
-    );
+    await cloudinary.v2.uploader.destroy(publicId, { resource_type, invalidate: true })
+  } catch (e) {
+    console.error("Cloudinary destroy error:", e)
   }
 }
 
-export async function DELETE(request: NextRequest) {
-  const supabase = await createSupabaseServerClient()
-  const { data: { session }, error: authError } = await supabase.auth.getSession()
+// GET /api/links?id=...
+export async function GET(req: NextRequest) {
+  const supabase = await createServerSupabaseClient()
+  const id = req.nextUrl.searchParams.get("id")
+  if (!id) return NextResponse.json({ error: "id required" }, { status: 400 })
 
-  if (authError || !session) {
-    return NextResponse.json(
-      { error: 'Unauthorized' },
-      { status: 401 }
-    )
-  }
+  const { data, error } = await supabase
+    .from("data")
+    .select("id, slug, customer_name, image_url, video_url, thumbnail_url")
+    .eq("id", id)
+    .single()
 
-  try {
-    const { id } = await request.json()
-    
-    // Verify link ownership
-    const { data: existingLink, error: fetchError } = await supabase
-      .from('data')
-      .select('*')
-      .eq('id', id)
-      .single()
+  if (error || !data) return NextResponse.json({ error: "Not found" }, { status: 404 })
+  return NextResponse.json(data)
+}
 
-    if (fetchError || existingLink.user_id !== session.user.id) {
-      return NextResponse.json(
-        { error: 'Link not found or unauthorized' },
-        { status: 404 }
-      )
-    }
+// PUT update with optional file replacements (old files cleanup)
+export async function PUT(req: NextRequest) {
+  const supabase = await createServerSupabaseClient()
+  const body = await req.json()
+  const { id, customer_name, mind_file_url = null, video_url = null, thumbnail_url = null, replaced = {} } = body || {}
 
-    const { error } = await supabase
-      .from('data')
-      .delete()
-      .eq('id', id)
+  if (!id || !customer_name) return NextResponse.json({ error: "id and customer_name required" }, { status: 400 })
 
-    if (error) throw error
+  // fetch current row to know what to delete
+  const { data: current, error: curErr } = await supabase
+    .from("data")
+    .select("image_url, video_url, thumbnail_url")
+    .eq("id", id)
+    .single()
 
-    return NextResponse.json(
-      { success: true },
-      { status: 200 }
-    )
-  } catch (error) {
-    return NextResponse.json(
-      { error: 'Failed to delete link' },
-      { status: 500 }
-    )
-  }
+  if (curErr || !current) return NextResponse.json({ error: "Not found" }, { status: 404 })
+
+  // If files replaced, delete old ones
+  if (replaced.mind_file && current.image_url) await destroyIfExists(current.image_url)
+  if (replaced.video && current.video_url) await destroyIfExists(current.video_url)
+  if (replaced.thumbnail && current.thumbnail_url) await destroyIfExists(current.thumbnail_url)
+
+  const { data, error } = await supabase
+    .from("data")
+    .update({
+      customer_name,
+      image_url: mind_file_url,
+      video_url,
+      thumbnail_url,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id)
+    .select()
+    .single()
+
+  if (error || !data) return NextResponse.json({ error: "Failed to update link" }, { status: 500 })
+
+  return NextResponse.json(data)
+}
+
+// DELETE link and all assets
+export async function DELETE(req: NextRequest) {
+  const supabase = await createServerSupabaseClient()
+  const body = await req.json()
+  const { id } = body || {}
+  if (!id) return NextResponse.json({ error: "id required" }, { status: 400 })
+
+  const { data: current, error: curErr } = await supabase
+    .from("data")
+    .select("image_url, video_url, thumbnail_url")
+    .eq("id", id)
+    .single()
+
+  if (curErr || !current) return NextResponse.json({ error: "Not found" }, { status: 404 })
+
+  // delete row first or after? We'll delete assets then row
+  await Promise.all([
+    destroyIfExists(current.image_url),
+    destroyIfExists(current.video_url),
+    destroyIfExists(current.thumbnail_url),
+  ])
+
+  const { error } = await supabase.from("data").delete().eq("id", id)
+  if (error) return NextResponse.json({ error: "Failed to delete link" }, { status: 500 })
+
+  return NextResponse.json({ success: true })
 }

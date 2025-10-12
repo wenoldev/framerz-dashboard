@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createMiddlewareSupabaseClient } from '@/lib/supabase/middleware';
+import { createMiddlewareSupabaseClient } from '@/lib/supabase/client';
 
 export async function middleware(request: NextRequest) {
   const response = NextResponse.next({
@@ -17,7 +17,7 @@ export async function middleware(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
 
   // Protect the /dashboard route
-  const isDashboardRoute = request.nextUrl.pathname.startsWith('/dashboard');
+  const isDashboardRoute = request.nextUrl.pathname.startsWith('/dashboard') || request.nextUrl.pathname.startsWith('/admin');
 
   if (isDashboardRoute && !user) {
     const redirectUrl = request.nextUrl.clone();
@@ -29,5 +29,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/dashboard/:path*'],
+  matcher: ['/dashboard/:path*','/admin/:path*'],
 };

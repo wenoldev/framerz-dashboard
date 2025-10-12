@@ -1,5 +1,4 @@
-'use client'
-
+'use client';
 import { createClient } from "./supabase/client"
 
 export async function signInWithGoogle() {

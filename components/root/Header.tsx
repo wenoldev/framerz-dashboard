@@ -1,49 +1,60 @@
-import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
-import Link from 'next/link'
-import { getSession } from '@/lib/auth' // Import your auth utilities
-import { SignOutButton } from '../auth/SignOutButton' // You'll need to create this
-import AuthForm from '../auth/AuthForm'
+import Link from "next/link"
+import { Badge } from "@/components/ui/badge"
+import UserMenu from "./UserMenu"
+import { getSession } from "@/lib/auth"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "../ui/dialog"
+import AuthForm from "../auth/AuthForm"
+import { Button } from "../ui/button"
+import { getUserProfile } from "@/app/actions/user"
 
 export async function Header() {
   const session = await getSession()
-  
+  let points = 0
+
+  if (session) {
+      try {
+        const res = await getUserProfile();
+        if (res) points = res.points;
+      } catch {
+        console.error('Failed to fetch user profile');
+      }
+    }
+
   return (
-    <header className="border-b z-10">
-      <div className="mx-auto flex justify-between items-center py-4 px-4">
+    <header className="border-b bg-background text-foreground">
+      <div className="mx-auto flex items-center justify-between py-4 px-4">
         <Link href="/" className="font-bold text-xl flex items-center">
-          <span className="w-2 h-2 bg-black mr-2 font-mono"></span>
+          <span className="w-2 h-2 bg-primary mr-2 rounded-full" aria-hidden />
           Framerz
+          <span className="sr-only">Home</span>
         </Link>
-        <nav className="flex items-center space-x-6">
-          {/* <Link href="/pricing" className="text-sm hover:text-blue-600 transition-colors">
-            Pricing
-          </Link>
-          <Link href="/resources" className="text-sm hover:text-blue-600 transition-colors">
-            Resources
-          </Link>
-          <Link href="/features" className="text-sm hover:text-blue-600 transition-colors">
-            Features
-          </Link> */}
-          {session ? (
-            <SignOutButton />
-          ) : (
-            <Dialog>
-              <form>
-                <DialogTrigger asChild>
-                  <Button className='cursor-pointer'>Get Started</Button>
-                </DialogTrigger>
-                <DialogContent className="sm:max-w-[425px]">
-                  <DialogHeader className='sr-only'>
-                    <DialogTitle>Authentication Dialog</DialogTitle>
-                  </DialogHeader>
-                  <AuthForm />
-                </DialogContent>
-              </form>
-            </Dialog>
-          )}
-        </nav>
+        {session ? (
+          <nav className="flex items-center gap-4">
+            <Link href="/settings" className="no-underline">
+              <Badge variant="secondary" className="font-medium hover:opacity-90">
+                Points: {points}
+              </Badge>
+            </Link>
+            <UserMenu />
+          </nav>
+        ) : (
+          <Dialog>
+            <form>
+              <DialogTrigger asChild>
+                <Button>Get Started</Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[425px]">
+                <DialogHeader className='sr-only'>
+                  <DialogTitle>Authentication Dialog</DialogTitle>
+                </DialogHeader>
+                <AuthForm />
+              </DialogContent>
+            </form>
+          </Dialog>
+        )}
       </div>
     </header>
   )
 }
+
+export default Header

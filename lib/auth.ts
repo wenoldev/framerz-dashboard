@@ -1,41 +1,10 @@
 'use server';
 
-import { createServerClient, type CookieOptions } from '@supabase/ssr';
-import { cookies } from 'next/headers';
-
-export async function createSupabaseServerClient() {
-  const cookieStore = await cookies();
-
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value;
-        },
-        set(name: string, value: string, options: CookieOptions) {
-          try {
-            cookieStore.set({ name, value, ...options });
-          } catch (error) {
-            console.error('Failed to set cookie:', error);
-          }
-        },
-        remove(name: string, options: CookieOptions) {
-          try {
-            cookieStore.set({ name, value: '', ...options });
-          } catch (error) {
-            console.error('Failed to remove cookie:', error);
-          }
-        },
-      },
-    }
-  );
-}
+import { createServerSupabaseClient } from './supabase/server';
 
 export async function signUp(email: string, password: string) {
   try {
-    const supabase = await createSupabaseServerClient();
+    const supabase = await createServerSupabaseClient();
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -53,7 +22,7 @@ export async function signUp(email: string, password: string) {
 
 export async function signIn(email: string, password: string) {
   try {
-    const supabase = await createSupabaseServerClient();
+    const supabase = await createServerSupabaseClient();
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
@@ -68,7 +37,7 @@ export async function signIn(email: string, password: string) {
 
 export async function signOut() {
   try {
-    const supabase = await createSupabaseServerClient();
+    const supabase = await createServerSupabaseClient();
     const { error } = await supabase.auth.signOut();
     return { error };
   } catch (err) {
@@ -79,7 +48,7 @@ export async function signOut() {
 
 export async function getSession() {
   try {
-    const supabase = await createSupabaseServerClient();
+    const supabase = await createServerSupabaseClient();
     const { data: { session } } = await supabase.auth.getSession();
     return session;
   } catch (err) {
@@ -90,7 +59,7 @@ export async function getSession() {
 
 export async function forgotPassword(email: string) {
   try {
-    const supabase = await createSupabaseServerClient();
+    const supabase = await createServerSupabaseClient();
     const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/update-password`,
     });

@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server'
-import { createSupabaseServerClient } from '@/lib/auth'
+import { createServerSupabaseClient } from '@/lib/supabase/server'
 import type { NextRequest } from 'next/server'
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = await createSupabaseServerClient()
+    const supabase = await createServerSupabaseClient()
 
     // Get count from "data" table
     const { count, error } = await supabase
