@@ -1,16 +1,44 @@
+"use client"
+
+import { useEffect, useState } from "react"
+import { useSearchParams } from "next/navigation" // ✅ client hook
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { BuyCredits } from "@/components/dashboard/BuyCredits"
 import { TransactionsList } from "@/components/dashboard/TransactionList"
-import { getUserProfile } from "../actions/user"
 
-export default async function SettingsPage({ searchParams }: { searchParams: { points?: string } }) {
-const res = await getUserProfile()
-  const balance = res && res.points ? {points: res.points} : { points: 0 }
-  const points = Number(balance?.points ?? 0)
+export default function SettingsPage() {
+  const searchParams = useSearchParams() // ✅ client hook
+  const pointsQuery = searchParams.get("points") // string | null
+  const requiredPoints = Number(pointsQuery ?? 0)
+  const amountRs = requiredPoints * 10 // 1 point = 10₹
+
+  const [points, setPoints] = useState<number>(0)
+  const [loading, setLoading] = useState<boolean>(true)
+  const [error, setError] = useState<string | null>(null)
+
   const conversion = "100₹ → 10 points"
-const resolvedSearchParams = await searchParams // Await the searchParams Promise
-  const requiredPoints = Number(resolvedSearchParams.points) || 0
-  const amountRs = requiredPoints * 10; // 1 point = 10₹
+
+  useEffect(() => {
+    async function fetchProfile() {
+      try {
+        setLoading(true)
+        const res = await fetch("/api/user/profile", { credentials: "include" })
+        if (!res.ok) throw new Error("Failed to load user profile")
+        const data = await res.json()
+        setPoints(data?.points ?? 0)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } catch (err: any) {
+        setError(err.message || "Error loading profile")
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchProfile()
+  }, [])
+
+  if (loading) return <div className="p-8 text-center text-muted-foreground">Loading...</div>
+  if (error) return <div className="p-8 text-center text-red-500">{error}</div>
+
   return (
     <main className="container mx-auto px-4 py-8">
       <Card>
@@ -25,12 +53,11 @@ const resolvedSearchParams = await searchParams // Await the searchParams Promis
             <p className="text-sm text-muted-foreground mt-2">Conversion: {conversion}</p>
           </div>
           <div className="flex items-end justify-end">
-            <BuyCredits initialAmountRs={amountRs}/>
+            <BuyCredits initialAmountRs={amountRs} />
           </div>
         </CardContent>
       </Card>
 
-      {/* Recent transactions list */}
       <div className="mt-8">
         <Card>
           <CardHeader>

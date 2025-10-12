@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createMiddlewareSupabaseClient } from '@/lib/supabase/client';
+import { createServerSupabaseClient } from '@/lib/supabase/server';
 
 export async function middleware(request: NextRequest) {
   const response = NextResponse.next({
@@ -8,7 +8,7 @@ export async function middleware(request: NextRequest) {
     },
   });
 
-  const supabase = createMiddlewareSupabaseClient(request, response);
+  const supabase = await createServerSupabaseClient();
 
   // Refresh the session
   await supabase.auth.getSession();
