@@ -228,7 +228,7 @@ export default function LinkTableClient({ initialLinks }: Props) {
         setIsLoading(false);
         return;
       }
-      if (newLinkData.video.size > 5 * 1024 * 1024) {
+      if (newLinkData.video.size > 100 * 1024 * 1024) {
         // 100MB limit
         setError('Video size must be less than 100MB');
         setIsLoading(false);
@@ -340,7 +340,7 @@ export default function LinkTableClient({ initialLinks }: Props) {
         setIsLoading(false);
         return;
       }
-      if (newLinkData.video.size > 5 * 1024 * 1024) {
+      if (newLinkData.video.size > 100 * 1024 * 1024) {
         setError('Video size must be less than 100MB');
         setIsLoading(false);
         return;
