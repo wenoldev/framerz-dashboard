@@ -495,7 +495,7 @@ export default function LinkTableClient({ initialLinks }: Props) {
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
               <CardTitle className="text-2xl font-bold text-gray-800">Link Management</CardTitle>
-              <p className="text-gray-600 mt-2">Shorten, track, and manage your links</p>
+              <p className="text-gray-600 mt-2">Manage your links</p>
             </div>
             <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
               <div className="relative w-full sm:w-64">

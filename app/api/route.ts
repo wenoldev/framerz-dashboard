@@ -43,23 +43,34 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  const { data, error } = await supabase
+  const { data, error: fetchError } = await supabase
     .from('data')
-    .select('image_url, video_url, thumbnail_url, customer_name') // Added thumbnail_url
+    .select('image_url, video_url, thumbnail_url, customer_name, scans')
     .eq('slug', slug)
     .single();
 
-  if (error || !data) {
+  if (fetchError || !data) {
     return withCors(
       NextResponse.json({ error: 'Not found' }, { status: 404 })
     );
+  }
+
+  // Increment scans count
+  const { error: updateError } = await supabase
+    .from('data')
+    .update({ scans: data.scans + 1 })
+    .eq('slug', slug);
+
+  if (updateError) {
+    console.error('Failed to update scans:', updateError);
+    // Continue with response even if update fails to avoid breaking the main request
   }
 
   return withCors(NextResponse.json({
     customer_name: data.customer_name,
     mind_file_url: data.image_url,
     video_url: data.video_url,
-    thumbnail_url: data.thumbnail_url, // Added thumbnail_url
+    thumbnail_url: data.thumbnail_url,
   }));
 }
 

@@ -3,6 +3,13 @@ import { createSupabaseServerClient } from '@/lib/auth';
 import type { NextRequest } from 'next/server';
 import fsPromises from 'fs/promises';
 import pathModule from 'path';
+import { v2 as cloudinary } from 'cloudinary';
+
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
 async function combineChunks(tempDir: string, total: number) {
   const buffers: Buffer[] = [];
@@ -25,9 +32,14 @@ async function cleanupTemp(tempDir: string) {
   }
 }
 
-function extractPathFromUrl(url: string): string | null {
-  const match = url.match(/\/object\/public\/files\/(.+)/);
-  return match ? match[1] : null;
+function extractCloudinaryInfo(url: string): { resource_type: string; public_id: string } | null {
+  const match = url.match(/https?:\/\/res\.cloudinary\.com\/[^\/]+\/(image|video|raw)\/upload\/(?:v\d+\/)?(.*?)(\.[^\/.]*)?$/);
+  if (match) {
+    const resource_type = match[1];
+    const public_id = match[2] + (match[3] || '');
+    return { resource_type, public_id };
+  }
+  return null;
 }
 
 export async function GET(request: NextRequest) {
@@ -73,6 +85,7 @@ export async function POST(request: NextRequest) {
       const total = parseInt(formData.get('total') as string);
       const uploadId = formData.get('uploadId') as string;
       const fileName = formData.get('fileName') as string;
+      const fileType = formData.get('fileType') as string;
 
       if (!chunk) {
         return NextResponse.json({ error: 'No chunk provided' }, { status: 400 });
@@ -87,24 +100,29 @@ export async function POST(request: NextRequest) {
       if (index + 1 === total) {
         const combinedBuffer = await combineChunks(tempDir, total);
 
-        const { data, error: uploadError } = await supabase.storage
-          .from('files')
-          .upload(`${uploadId}/${fileName}`, combinedBuffer, {
-            contentType: chunk.type,
-          });
-
-        if (uploadError) {
-          await cleanupTemp(tempDir);
-          throw uploadError;
+        const resource_type = fileType === 'mind_file' ? 'raw' : fileType === 'video' ? 'video' : 'image';
+        let public_id = `${uploadId}/${fileName.replace(/\.[^/.]+$/, "")}`;
+        if (resource_type === 'raw') {
+          public_id = `${uploadId}/${fileName}`;
         }
 
-        const { data: publicData } = supabase.storage
-          .from('files')
-          .getPublicUrl(`${uploadId}/${fileName}`);
+        const uploadPromise = new Promise((resolve, reject) => {
+          const stream = cloudinary.uploader.upload_stream(
+            { resource_type, public_id },
+            (error, result) => {
+              if (error) reject(error);
+              else resolve(result);
+            }
+          );
+          stream.end(combinedBuffer);
+        });
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const uploadResult: any = await uploadPromise;
 
         await cleanupTemp(tempDir);
 
-        return NextResponse.json({ status: 'complete', url: publicData.publicUrl });
+        return NextResponse.json({ status: 'complete', url: uploadResult.secure_url });
       }
 
       return NextResponse.json({ status: 'partial' });
@@ -183,9 +201,9 @@ export async function PUT(request: NextRequest) {
 
     if (mind_file_url && mind_file_url !== existingLink.mind_file_url) {
       if (existingLink.mind_file_url) {
-        const oldPath = extractPathFromUrl(existingLink.mind_file_url);
-        if (oldPath) {
-          await supabase.storage.from('files').remove([oldPath]);
+        const oldInfo = extractCloudinaryInfo(existingLink.mind_file_url);
+        if (oldInfo) {
+          await cloudinary.uploader.destroy(oldInfo.public_id, { resource_type: oldInfo.resource_type });
         }
       }
       updates.mind_file_url = mind_file_url;
@@ -193,9 +211,9 @@ export async function PUT(request: NextRequest) {
 
     if (video_url && video_url !== existingLink.video_url) {
       if (existingLink.video_url) {
-        const oldPath = extractPathFromUrl(existingLink.video_url);
-        if (oldPath) {
-          await supabase.storage.from('files').remove([oldPath]);
+        const oldInfo = extractCloudinaryInfo(existingLink.video_url);
+        if (oldInfo) {
+          await cloudinary.uploader.destroy(oldInfo.public_id, { resource_type: oldInfo.resource_type });
         }
       }
       updates.video_url = video_url;
@@ -203,9 +221,9 @@ export async function PUT(request: NextRequest) {
 
     if (thumbnail_url && thumbnail_url !== existingLink.thumbnail_url) {
       if (existingLink.thumbnail_url) {
-        const oldPath = extractPathFromUrl(existingLink.thumbnail_url);
-        if (oldPath) {
-          await supabase.storage.from('files').remove([oldPath]);
+        const oldInfo = extractCloudinaryInfo(existingLink.thumbnail_url);
+        if (oldInfo) {
+          await cloudinary.uploader.destroy(oldInfo.public_id, { resource_type: oldInfo.resource_type });
         }
       }
       updates.thumbnail_url = thumbnail_url;
@@ -252,23 +270,25 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Link not found or unauthorized' }, { status: 404 });
     }
 
-    const paths: string[] = [];
     if (existingLink.mind_file_url) {
-      const p = extractPathFromUrl(existingLink.mind_file_url);
-      if (p) paths.push(p);
-    }
-    if (existingLink.video_url) {
-      const p = extractPathFromUrl(existingLink.video_url);
-      if (p) paths.push(p);
-    }
-    if (existingLink.thumbnail_url) {
-      const p = extractPathFromUrl(existingLink.thumbnail_url);
-      if (p) paths.push(p);
+      const info = extractCloudinaryInfo(existingLink.mind_file_url);
+      if (info) {
+        await cloudinary.uploader.destroy(info.public_id, { resource_type: info.resource_type });
+      }
     }
 
-    if (paths.length > 0) {
-      const { error: removeError } = await supabase.storage.from('files').remove(paths);
-      if (removeError) console.error('Error removing files:', removeError);
+    if (existingLink.video_url) {
+      const info = extractCloudinaryInfo(existingLink.video_url);
+      if (info) {
+        await cloudinary.uploader.destroy(info.public_id, { resource_type: info.resource_type });
+      }
+    }
+
+    if (existingLink.thumbnail_url) {
+      const info = extractCloudinaryInfo(existingLink.thumbnail_url);
+      if (info) {
+        await cloudinary.uploader.destroy(info.public_id, { resource_type: info.resource_type });
+      }
     }
 
     const { error } = await supabase.from('data').delete().eq('id', id);
