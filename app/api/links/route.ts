@@ -175,6 +175,7 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Link not found or unauthorized' }, { status: 404 });
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const updates: any = {};
 
     if (customer_name) updates.customer_name = customer_name;
