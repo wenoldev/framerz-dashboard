@@ -39,14 +39,14 @@ import { QRCodeSVG } from 'qrcode.react';
 type Link = {
   id: string;
   slug: string;
-  clicks: number;
+  scans: number;
   shortUrl: string;
   customer_name?: string;
   created_at: string;
-  status: 'active' | 'paused' | 'inactive';
+  status: 'active' | 'inactive';
   mind_file?: string | null;
   video?: string | null;
-  thumbnail?: string | null; // Added for thumbnail support
+  thumbnail?: string | null;
 };
 
 type Props = {
@@ -68,7 +68,7 @@ export default function LinkTableClient({ initialLinks }: Props) {
     customer_name: '',
     mind_file: null as File | null,
     video: null as File | null,
-    thumbnail: null as File | null, // Added thumbnail field
+    thumbnail: null as File | null,
   });
   const qrCodeRef = useRef<any>(null);
   const itemsPerPage = 8;
@@ -236,7 +236,7 @@ export default function LinkTableClient({ initialLinks }: Props) {
       }
     }
 
-    // Validate thumbnail file (new)
+    // Validate thumbnail file
     if (newLinkData.thumbnail) {
       const validImageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
       if (!validImageTypes.includes(newLinkData.thumbnail.type)) {
@@ -259,7 +259,7 @@ export default function LinkTableClient({ initialLinks }: Props) {
       const thumbnail_url = await uploadFile(newLinkData.thumbnail, 'thumbnail');
 
       // Now create the link with the uploaded URLs
-      const response = await fetch('/api', {
+      const response = await fetch('/api/links', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -283,11 +283,11 @@ export default function LinkTableClient({ initialLinks }: Props) {
         shortUrl: `${process.env.NEXT_PUBLIC_MAIN_URL}?f=${data.slug}`,
         created_at: format(new Date(), 'MMM d, yyyy'),
         status: 'active',
-        clicks: 0,
+        scans: 0,
         customer_name: data.customer_name,
         mind_file: data.mind_file_url || null,
         video: data.video_url || null,
-        thumbnail: data.thumbnail_url || null, // Added thumbnail
+        thumbnail: data.thumbnail_url || null,
       };
 
       setLinks((prev) => [formattedLink, ...prev]);
@@ -313,7 +313,59 @@ export default function LinkTableClient({ initialLinks }: Props) {
     setIsLoading(true);
     setError('');
 
+    // Similar validations as create
+    if (!newLinkData.customer_name.trim()) {
+      setError('Please enter a customer name');
+      setIsLoading(false);
+      return;
+    }
+
+    if (newLinkData.mind_file) {
+      if (!newLinkData.mind_file.name.endsWith('.mind')) {
+        setError('Please upload a valid .mind file');
+        setIsLoading(false);
+        return;
+      }
+      if (newLinkData.mind_file.size > 5 * 1024 * 1024) {
+        setError('Mind file size must be less than 5MB');
+        setIsLoading(false);
+        return;
+      }
+    }
+
+    if (newLinkData.video) {
+      const validVideoTypes = ['video/mp4', 'video/webm', 'video/ogg'];
+      if (!validVideoTypes.includes(newLinkData.video.type)) {
+        setError('Please upload a valid video (MP4, WebM, or OGG)');
+        setIsLoading(false);
+        return;
+      }
+      if (newLinkData.video.size > 100 * 1024 * 1024) {
+        setError('Video size must be less than 100MB');
+        setIsLoading(false);
+        return;
+      }
+    }
+
+    if (newLinkData.thumbnail) {
+      const validImageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+      if (!validImageTypes.includes(newLinkData.thumbnail.type)) {
+        setError('Please upload a valid image thumbnail (JPEG, PNG, GIF, WebP)');
+        setIsLoading(false);
+        return;
+      }
+      if (newLinkData.thumbnail.size > 2 * 1024 * 1024) {
+        setError('Thumbnail size must be less than 2MB');
+        setIsLoading(false);
+        return;
+      }
+    }
+
     try {
+      const mind_file_url = newLinkData.mind_file ? await uploadFile(newLinkData.mind_file, 'mind_file') : currentLink.mind_file;
+      const video_url = newLinkData.video ? await uploadFile(newLinkData.video, 'video') : currentLink.video;
+      const thumbnail_url = newLinkData.thumbnail ? await uploadFile(newLinkData.thumbnail, 'thumbnail') : currentLink.thumbnail;
+
       const response = await fetch('/api/links', {
         method: 'PUT',
         headers: {
@@ -322,6 +374,9 @@ export default function LinkTableClient({ initialLinks }: Props) {
         body: JSON.stringify({
           id: currentLink.id,
           customer_name: newLinkData.customer_name,
+          mind_file_url,
+          video_url,
+          thumbnail_url,
         }),
       });
 
@@ -336,6 +391,9 @@ export default function LinkTableClient({ initialLinks }: Props) {
               ...data,
               shortUrl: `${process.env.NEXT_PUBLIC_MAIN_URL}?f=${data.slug}`,
               created_at: format(new Date(data.created_at), 'MMM d, yyyy'),
+              mind_file: data.mind_file_url || null,
+              video: data.video_url || null,
+              thumbnail: data.thumbnail_url || null,
             }
           : link
       );
@@ -377,13 +435,40 @@ export default function LinkTableClient({ initialLinks }: Props) {
     }
   };
 
+  const handleToggleStatus = async (link: Link) => {
+    const newStatus = link.status === 'active' ? 'inactive' : 'active';
+    setIsLoading(true);
+    try {
+      const response = await fetch('/api/links', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ id: link.id, status: newStatus }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to toggle status');
+      }
+
+      const data = await response.json();
+      setLinks(links.map((l) => (l.id === link.id ? { ...l, status: data.status } : l)));
+      toast.success('Status updated successfully!');
+    } catch (error) {
+      toast.error('Failed to toggle status');
+      console.error('Error toggling status:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const openEditDialog = (link: Link) => {
     setCurrentLink(link);
     setNewLinkData({
       customer_name: link.customer_name || '',
       mind_file: null,
       video: null,
-      thumbnail: null, // Added
+      thumbnail: null,
     });
     setIsEditDialogOpen(true);
   };
@@ -397,9 +482,7 @@ export default function LinkTableClient({ initialLinks }: Props) {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'active':
-        return <Badge className="bg-purple-100 text-purple-800 border-purple-200">Active</Badge>;
-      case 'paused':
-        return <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200">Paused</Badge>;
+        return <Badge className="bg-blue-100 text-blue-800 border-blue-200">Active</Badge>;
       default:
         return <Badge className="bg-gray-100 text-gray-800 border-gray-200">Inactive</Badge>;
     }
@@ -407,7 +490,7 @@ export default function LinkTableClient({ initialLinks }: Props) {
 
   return (
     <div className="max-w-7xl mx-auto p-4 sm:p-6 space-y-6">
-      <Card className="shadow-lg border-0 bg-gradient-to-r from-purple-50 to-gray-50">
+      <Card className="shadow-lg border-0 bg-gradient-to-r from-blue-50 to-gray-50">
         <CardHeader className="pb-6">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
@@ -424,7 +507,7 @@ export default function LinkTableClient({ initialLinks }: Props) {
                     setSearchTerm(e.target.value);
                     setCurrentPage(1);
                   }}
-                  className="pl-10 border-gray-200 focus:border-purple-500"
+                  className="pl-10 border-gray-200 focus:border-blue-500"
                 />
               </div>
               <Dialog open={isCreateDialogOpen} onOpenChange={(open) => {
@@ -432,7 +515,7 @@ export default function LinkTableClient({ initialLinks }: Props) {
                 if (!open) setQrCodeUrl(null); // Reset QR code when dialog closes
               }}>
                 <DialogTrigger asChild>
-                  <Button className="bg-purple-600 hover:bg-purple-700 text-white shadow-md">
+                  <Button className="bg-blue-600 hover:bg-blue-700 text-white shadow-md">
                     <Plus className="w-4 h-4 mr-2" />
                     Create New Link
                   </Button>
@@ -466,10 +549,10 @@ export default function LinkTableClient({ initialLinks }: Props) {
                                 customer_name: '',
                                 mind_file: null,
                                 video: null,
-                                thumbnail: null, // Added
+                                thumbnail: null,
                               });
                             }}
-                            className="bg-purple-600 hover:bg-purple-700 text-white"
+                            className="bg-blue-600 hover:bg-blue-700 text-white"
                           >
                             Close
                           </Button>
@@ -488,7 +571,7 @@ export default function LinkTableClient({ initialLinks }: Props) {
                             onChange={(e) =>
                               setNewLinkData({ ...newLinkData, customer_name: e.target.value })
                             }
-                            className="border-gray-200 focus:border-purple-500"
+                            className="border-gray-200 focus:border-blue-500"
                           />
                         </div>
                         <div className="space-y-2">
@@ -502,7 +585,7 @@ export default function LinkTableClient({ initialLinks }: Props) {
                             onChange={(e) =>
                               setNewLinkData({ ...newLinkData, mind_file: e.target.files?.[0] || null })
                             }
-                            className="border-gray-200 focus:border-purple-500"
+                            className="border-gray-200 focus:border-blue-500"
                           />
                         </div>
                         <div className="space-y-2">
@@ -516,10 +599,9 @@ export default function LinkTableClient({ initialLinks }: Props) {
                             onChange={(e) =>
                               setNewLinkData({ ...newLinkData, video: e.target.files?.[0] || null })
                             }
-                            className="border-gray-200 focus:border-purple-500"
+                            className="border-gray-200 focus:border-blue-500"
                           />
                         </div>
-                        {/* New thumbnail input */}
                         <div className="space-y-2">
                           <Label htmlFor="thumbnail" className="text-sm font-medium text-gray-700">
                             Thumbnail Image (Optional, JPEG/PNG/GIF/WebP, max 2MB)
@@ -531,7 +613,7 @@ export default function LinkTableClient({ initialLinks }: Props) {
                             onChange={(e) =>
                               setNewLinkData({ ...newLinkData, thumbnail: e.target.files?.[0] || null })
                             }
-                            className="border-gray-200 focus:border-purple-500"
+                            className="border-gray-200 focus:border-blue-500"
                           />
                         </div>
                         {error && <p className="text-red-500 text-sm">{error}</p>}
@@ -546,7 +628,7 @@ export default function LinkTableClient({ initialLinks }: Props) {
                           <Button
                             onClick={handleCreateLink}
                             disabled={isLoading || !newLinkData.customer_name}
-                            className="bg-purple-600 hover:bg-purple-700 text-white"
+                            className="bg-blue-600 hover:bg-blue-700 text-white"
                           >
                             {isLoading ? 'Creating...' : 'Create Link'}
                           </Button>
@@ -574,7 +656,7 @@ export default function LinkTableClient({ initialLinks }: Props) {
                 if (!open) setQrCodeUrl(null);
               }}>
                 <DialogTrigger asChild>
-                  <Button className="bg-purple-600 hover:bg-purple-700 text-white">
+                  <Button className="bg-blue-600 hover:bg-blue-700 text-white">
                     <Plus className="w-4 h-4 mr-2" />
                     Create Link
                   </Button>
@@ -588,7 +670,7 @@ export default function LinkTableClient({ initialLinks }: Props) {
                   <thead className="bg-gray-50 border-b border-gray-200">
                     <tr>
                       <th className="text-left py-3 px-4 font-medium text-gray-700">Short URL</th>
-                      <th className="text-left py-3 px-4 font-medium text-gray-700">Clicks</th>
+                      <th className="text-left py-3 px-4 font-medium text-gray-700">Scans</th>
                       <th className="text-left py-3 px-4 font-medium text-gray-700">Customer Name</th>
                       <th className="text-left py-3 px-4 font-medium text-gray-700">Status</th>
                       <th className="text-left py-3 px-4 font-medium text-gray-700">Created</th>
@@ -600,14 +682,14 @@ export default function LinkTableClient({ initialLinks }: Props) {
                       <tr key={index} className="hover:bg-gray-50 transition-colors">
                         <td className="py-3 px-4">
                           <div className="flex items-center space-x-3">
-                            <code className="text-purple-600 bg-purple-50 px-2 py-1 rounded-full text-sm font-medium">
+                            <code className="text-blue-600 bg-blue-50 px-2 py-1 rounded-full text-sm font-medium">
                               {link.shortUrl}
                             </code>
                             <Button
                               variant="ghost"
                               size="sm"
                               onClick={() => copyToClipboard(link.shortUrl)}
-                              className="h-8 w-8 p-0 hover:bg-purple-100"
+                              className="h-8 w-8 p-0 hover:bg-blue-100"
                             >
                               <Copy className="h-4 w-4" />
                             </Button>
@@ -615,8 +697,8 @@ export default function LinkTableClient({ initialLinks }: Props) {
                         </td>
                         <td className="py-3 px-4">
                           <div className="flex items-center space-x-2">
-                            <BarChart3 className="h-4 w-4 text-purple-500" />
-                            <span className="font-semibold text-gray-900">{link.clicks}</span>
+                            <BarChart3 className="h-4 w-4 text-blue-500" />
+                            <span className="font-semibold text-gray-900">{link.scans}</span>
                           </div>
                         </td>
                         <td className="py-3 px-4">
@@ -645,6 +727,10 @@ export default function LinkTableClient({ initialLinks }: Props) {
                                 <Edit className="mr-2 h-4 w-4" />
                                 Edit Link
                               </DropdownMenuItem>
+                              <DropdownMenuItem className="cursor-pointer" onClick={() => handleToggleStatus(link)}>
+                                <Edit className="mr-2 h-4 w-4" />
+                                {link.status === 'active' ? 'Deactivate' : 'Activate'}
+                              </DropdownMenuItem>
                               <DropdownMenuItem
                                 className="cursor-pointer text-red-600 hover:text-red-700 hover:bg-red-50"
                                 onClick={() => handleDeleteLink(link.id)}
@@ -672,7 +758,7 @@ export default function LinkTableClient({ initialLinks }: Props) {
                     size="sm"
                     onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
                     disabled={currentPage === 1}
-                    className="border-gray-300 hover:bg-purple-50"
+                    className="border-gray-300 hover:bg-blue-50"
                   >
                     Previous
                   </Button>
@@ -696,7 +782,7 @@ export default function LinkTableClient({ initialLinks }: Props) {
                           size="sm"
                           onClick={() => setCurrentPage(pageNum)}
                           className={`w-10 h-10 ${
-                            currentPage === pageNum ? 'bg-purple-600 text-white' : 'border-gray-300 hover:bg-purple-50'
+                            currentPage === pageNum ? 'bg-blue-600 text-white' : 'border-gray-300 hover:bg-blue-50'
                           }`}
                         >
                           {pageNum}
@@ -709,7 +795,7 @@ export default function LinkTableClient({ initialLinks }: Props) {
                     size="sm"
                     onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
                     disabled={currentPage === totalPages}
-                    className="border-gray-300 hover:bg-purple-50"
+                    className="border-gray-300 hover:bg-blue-50"
                   >
                     Next
                   </Button>
@@ -736,26 +822,78 @@ export default function LinkTableClient({ initialLinks }: Props) {
                 placeholder="Enter customer name"
                 value={newLinkData.customer_name}
                 onChange={(e) => setNewLinkData({ ...newLinkData, customer_name: e.target.value })}
-                className="border-gray-200 focus:border-purple-500"
+                className="border-gray-200 focus:border-blue-500"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-mind_file" className="text-sm font-medium text-gray-700">
+                Mind File (Optional, .mind, max 5MB)
+              </Label>
+              {currentLink?.mind_file && (
+                <p className="text-sm text-gray-600">
+                  Current: <a href={currentLink.mind_file} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">View Mind File</a>
+                </p>
+              )}
+              <Input
+                id="edit-mind_file"
+                type="file"
+                accept=".mind"
+                onChange={(e) => setNewLinkData({ ...newLinkData, mind_file: e.target.files?.[0] || null })}
+                className="border-gray-200 focus:border-blue-500"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-video" className="text-sm font-medium text-gray-700">
+                Video (Optional, MP4/WebM/OGG, max 100MB)
+              </Label>
+              {currentLink?.video && (
+                <p className="text-sm text-gray-600">
+                  Current: <a href={currentLink.video} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">View Video</a>
+                </p>
+              )}
+              <Input
+                id="edit-video"
+                type="file"
+                accept="video/mp4,video/webm,video/ogg"
+                onChange={(e) => setNewLinkData({ ...newLinkData, video: e.target.files?.[0] || null })}
+                className="border-gray-200 focus:border-blue-500"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-thumbnail" className="text-sm font-medium text-gray-700">
+                Thumbnail Image (Optional, JPEG/PNG/GIF/WebP, max 2MB)
+              </Label>
+              {currentLink?.thumbnail && (
+                <div>
+                  <p className="text-sm text-gray-600">Current Thumbnail:</p>
+                  <img src={currentLink.thumbnail} alt="Current thumbnail" className="w-32 h-32 object-cover mt-2" />
+                </div>
+              )}
+              <Input
+                id="edit-thumbnail"
+                type="file"
+                accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                onChange={(e) => setNewLinkData({ ...newLinkData, thumbnail: e.target.files?.[0] || null })}
+                className="border-gray-200 focus:border-blue-500"
               />
             </div>
             {error && <p className="text-red-500 text-sm">{error}</p>}
-          </div>
-          <div className="flex justify-end space-x-3 pt-4">
-            <Button
-              variant="outline"
-              onClick={() => setIsEditDialogOpen(false)}
-              className="border-gray-300 hover:bg-gray-50"
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleUpdateLink}
-              disabled={isLoading || !newLinkData.customer_name}
-              className="bg-purple-600 hover:bg-purple-700 text-white"
-            >
-              {isLoading ? 'Saving...' : 'Save Changes'}
-            </Button>
+            <div className="flex justify-end space-x-3 pt-4">
+              <Button
+                variant="outline"
+                onClick={() => setIsEditDialogOpen(false)}
+                className="border-gray-300 hover:bg-gray-50"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleUpdateLink}
+                disabled={isLoading || !newLinkData.customer_name}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                {isLoading ? 'Saving...' : 'Save Changes'}
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
@@ -785,7 +923,7 @@ export default function LinkTableClient({ initialLinks }: Props) {
                   setQrCodeUrl(null);
                   setCurrentLink(null);
                 }}
-                className="bg-purple-600 hover:bg-purple-700 text-white"
+                className="bg-blue-600 hover:bg-blue-700 text-white"
               >
                 Close
               </Button>

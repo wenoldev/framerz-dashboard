@@ -6,7 +6,7 @@ import { signIn, signUp, forgotPassword } from '@/lib/auth';
 import { signInWithGoogle } from '@/lib/signinWithGoogle';
 
 export default function AuthForm() {
-  const [isRegister, setIsRegister] = useState(true);
+  const [isRegister, setIsRegister] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -125,7 +125,7 @@ export default function AuthForm() {
         </p>
       </div>
 
-      {!showForgotPassword && (
+      {/* {!showForgotPassword && (
         <button
           onClick={handleGoogleSignIn}
           disabled={loading}
@@ -134,15 +134,15 @@ export default function AuthForm() {
           <img src="https://www.svgrepo.com/show/475656/google-color.svg" alt="Google" className="w-5 h-5" />
           Continue with Google
         </button>
-      )}
+      )} */}
 
-      {!showForgotPassword && (
+      {/* {!showForgotPassword && (
         <div className="flex items-center gap-2">
           <hr className="flex-grow border-gray-300" />
           <span className="text-gray-500 text-sm">OR</span>
           <hr className="flex-grow border-gray-300" />
         </div>
-      )}
+      )} */}
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-4">
