@@ -25,28 +25,32 @@ export async function OPTIONS() {
 }
 
 // GET: Fetch all links for the authenticated user
-export async function GET(request: NextRequest) {
+export async function GET(req: NextRequest) {
   const supabase = await createSupabaseServerClient();
+  const slug = req.nextUrl.searchParams.get("slug");
 
-  const { data: { session }, error: authError } = await supabase.auth.getSession();
-
-  if (authError || !session) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!slug) {
+    return withCors(NextResponse.json({ error: "Slug is required" }, { status: 400 }));
   }
 
-  try {
-    const { data: links, error } = await supabase
-      .from('data')
-      .select('*')
-      .eq('user_id', session.user.id)
-      .order('created_at', { ascending: false });
+  const { data, error } = await supabase
+    .from("data")
+    .select("image_url, video_url, thumbnail_url, customer_name")
+    .eq("slug", slug)
+    .maybeSingle();
 
-    if (error) throw error;
-
-    return NextResponse.json(links);
-  } catch (error) {
-    return NextResponse.json({ error: 'Failed to fetch links' }, { status: 500 });
+  if (error || !data) {
+    return withCors(NextResponse.json({ error: "Not found" }, { status: 404 }));
   }
+
+  return withCors(
+    NextResponse.json({
+      customer_name: data.customer_name,
+      mind_file_url: data.image_url,
+      video_url: data.video_url,
+      thumbnail_url: data.thumbnail_url,
+    }),
+  );
 }
 
 // POST: Generate presigned URL for Cloudinary upload
@@ -124,7 +128,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'customer_name is required' }, { status: 400 });
       }
 
-      const slug = crypto.randomUUID().replace(/-/g, '').slice(0, 10);
+    const slug = crypto.randomUUID().replace(/-/g, '').slice(0, 6);
 
       const { data: link, error } = await supabase
         .from('data')
