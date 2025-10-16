@@ -146,53 +146,61 @@ export default function LinkTableClient({ initialLinks }: Props) {
     }
   };
 
-  const uploadFile = async (file: File | null, fileType: 'mind_file' | 'video' | 'thumbnail') => {
-    if (!file) return null;
+const uploadFile = async (file: File | null, fileType: 'mind_file' | 'video' | 'thumbnail'): Promise<string | null> => {
+  if (!file) return null;
 
-    const chunkSize = 5 * 1024 * 1024; // 5MB chunks
-    const totalChunks = Math.ceil(file.size / chunkSize);
-    const uploadId = crypto.randomUUID();
-    let uploadedChunks = 0;
-    const toastId = toast.loading(`Uploading ${fileType} 0%`);
-    let url: string | null = null;
+  setIsLoading(true);
+  const toastId = toast.loading(`Uploading ${fileType} 0%`);
 
-    for (let index = 0; index < totalChunks; index++) {
-      const start = index * chunkSize;
-      const end = Math.min(start + chunkSize, file.size);
-      const chunk = file.slice(start, end);
+  try {
+    // Request presigned URL data from server
+    const response = await fetch('/api', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fileName: file.name, fileType, fileSize: file.size }),
+    });
 
-      const formData = new FormData();
-      formData.append('chunk', chunk, file.name);
-      formData.append('index', index.toString());
-      formData.append('total', totalChunks.toString());
-      formData.append('uploadId', uploadId);
-      formData.append('fileName', file.name);
-      formData.append('fileType', fileType);
+    if (!response.ok) throw new Error('Failed to get upload credentials');
 
-      const response = await fetch('/api', {
-        method: 'POST',
-        body: formData,
+    const { presignedUrl, publicId, uploadParams } = await response.json();
+
+    // Create FormData for Cloudinary upload
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    // Add all upload parameters from server
+    if (uploadParams) {
+      Object.keys(uploadParams).forEach(key => {
+        formData.append(key, uploadParams[key]);
       });
-
-      if (!response.ok) {
-        toast.error(`Failed to upload chunk ${index + 1} for ${fileType}`);
-        throw new Error(`Chunk upload failed for ${fileType}`);
-      }
-
-      const data = await response.json();
-
-      if (data.status === 'complete') {
-        url = data.url;
-      }
-
-      uploadedChunks++;
-      const progress = Math.round((uploadedChunks / totalChunks) * 100);
-      toast.loading(`Uploading ${fileType} ${progress}%`, { id: toastId });
     }
 
+    // Upload file to Cloudinary using POST with FormData
+    const uploadResponse = await fetch(presignedUrl, {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!uploadResponse.ok) {
+      const errorData = await uploadResponse.json();
+      throw new Error(errorData.error?.message || 'Failed to upload file to Cloudinary');
+    }
+
+    const uploadResult = await uploadResponse.json();
+    toast.success(`Uploaded ${fileType} successfully!`);
+
+    // Return the secure URL from Cloudinary's response
+    return uploadResult.secure_url;
+  } catch (err) {
+    const error = err instanceof Error ? err : new Error('Upload failed');
+    toast.error(error.message);
+    setError(error.message);
+    return null;
+  } finally {
     toast.dismiss(toastId);
-    return url;
-  };
+    setIsLoading(false);
+  }
+};
 
   const handleCreateLink = async () => {
     setIsLoading(true);
@@ -212,8 +220,7 @@ export default function LinkTableClient({ initialLinks }: Props) {
         setIsLoading(false);
         return;
       }
-      if (newLinkData.mind_file.size > 2 * 1024 * 1024) {
-        // 5MB limit
+      if (newLinkData.mind_file.size > 5 * 1024 * 1024) {
         setError('Mind file size must be less than 5MB');
         setIsLoading(false);
         return;
@@ -229,7 +236,6 @@ export default function LinkTableClient({ initialLinks }: Props) {
         return;
       }
       if (newLinkData.video.size > 100 * 1024 * 1024) {
-        // 100MB limit
         setError('Video size must be less than 100MB');
         setIsLoading(false);
         return;
@@ -245,7 +251,6 @@ export default function LinkTableClient({ initialLinks }: Props) {
         return;
       }
       if (newLinkData.thumbnail.size > 2 * 1024 * 1024) {
-        // 2MB limit
         setError('Thumbnail size must be less than 2MB');
         setIsLoading(false);
         return;
@@ -253,12 +258,12 @@ export default function LinkTableClient({ initialLinks }: Props) {
     }
 
     try {
-      // Upload files in chunks
+      // Upload files using presigned URLs
       const mind_file_url = await uploadFile(newLinkData.mind_file, 'mind_file');
       const video_url = await uploadFile(newLinkData.video, 'video');
       const thumbnail_url = await uploadFile(newLinkData.thumbnail, 'thumbnail');
 
-      // Now create the link with the uploaded URLs
+      // Create the link with the uploaded URLs
       const response = await fetch('/api/links', {
         method: 'POST',
         headers: {
@@ -266,9 +271,9 @@ export default function LinkTableClient({ initialLinks }: Props) {
         },
         body: JSON.stringify({
           customer_name: newLinkData.customer_name,
-          mind_file_url,
-          video_url,
-          thumbnail_url,
+          mind_file_url: mind_file_url || '',
+          video_url: video_url || '',
+          thumbnail_url: thumbnail_url || '',
         }),
       });
 
@@ -374,9 +379,9 @@ export default function LinkTableClient({ initialLinks }: Props) {
         body: JSON.stringify({
           id: currentLink.id,
           customer_name: newLinkData.customer_name,
-          mind_file_url,
-          video_url,
-          thumbnail_url,
+          mind_file_url: mind_file_url || '',
+          video_url: video_url || '',
+          thumbnail_url: thumbnail_url || '',
         }),
       });
 
@@ -512,7 +517,7 @@ export default function LinkTableClient({ initialLinks }: Props) {
               </div>
               <Dialog open={isCreateDialogOpen} onOpenChange={(open) => {
                 setIsCreateDialogOpen(open);
-                if (!open) setQrCodeUrl(null); // Reset QR code when dialog closes
+                if (!open) setQrCodeUrl(null);
               }}>
                 <DialogTrigger asChild>
                   <Button className="bg-blue-600 hover:bg-blue-700 text-white shadow-md">
@@ -723,10 +728,10 @@ export default function LinkTableClient({ initialLinks }: Props) {
                                 <Eye className="mr-2 h-4 w-4" />
                                 View QR Code
                               </DropdownMenuItem>
-                              <DropdownMenuItem className="cursor-pointer" onClick={() => openEditDialog(link)}>
+                              {/* <DropdownMenuItem className="cursor-pointer" onClick={() => openEditDialog(link)}>
                                 <Edit className="mr-2 h-4 w-4" />
                                 Edit Link
-                              </DropdownMenuItem>
+                              </DropdownMenuItem> */}
                               <DropdownMenuItem className="cursor-pointer" onClick={() => handleToggleStatus(link)}>
                                 <Edit className="mr-2 h-4 w-4" />
                                 {link.status === 'active' ? 'Deactivate' : 'Activate'}
