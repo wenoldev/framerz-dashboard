@@ -128,7 +128,7 @@ export async function POST(request: NextRequest) {
       }
 
     const slug = Math.random().toString(36).substring(2, 8);
-
+      
       const { data: link, error } = await supabase
         .from('data')
         .insert({

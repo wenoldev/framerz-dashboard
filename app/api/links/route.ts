@@ -140,7 +140,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'customer_name is required' }, { status: 400 });
       }
 
-      const slug = crypto.randomUUID().replace(/-/g, '').slice(0, 10);
+      const slug = Math.random().toString(36).substring(2, 8);
 
       const { data: link, error } = await supabase
         .from('data')
