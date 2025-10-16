@@ -35,10 +35,9 @@ export async function GET(req: NextRequest) {
 
   const { data, error } = await supabase
     .from("data")
-    .select("image_url, video_url, thumbnail_url, customer_name")
+    .select("mind_file_url, video_url, thumbnail_url, customer_name")
     .eq("slug", slug)
     .maybeSingle();
-
   if (error || !data) {
     return withCors(NextResponse.json({ error: "Not found" }, { status: 404 }));
   }
@@ -46,7 +45,7 @@ export async function GET(req: NextRequest) {
   return withCors(
     NextResponse.json({
       customer_name: data.customer_name,
-      mind_file_url: data.image_url,
+      mind_file_url: data.mind_file_url,
       video_url: data.video_url,
       thumbnail_url: data.thumbnail_url,
     }),
