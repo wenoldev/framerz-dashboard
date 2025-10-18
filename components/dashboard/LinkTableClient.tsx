@@ -728,10 +728,10 @@ const uploadFile = async (file: File | null, fileType: 'mind_file' | 'video' | '
                                 <Eye className="mr-2 h-4 w-4" />
                                 View QR Code
                               </DropdownMenuItem>
-                              {/* <DropdownMenuItem className="cursor-pointer" onClick={() => openEditDialog(link)}>
+                              <DropdownMenuItem className="cursor-pointer" onClick={() => openEditDialog(link)}>
                                 <Edit className="mr-2 h-4 w-4" />
                                 Edit Link
-                              </DropdownMenuItem> */}
+                              </DropdownMenuItem>
                               <DropdownMenuItem className="cursor-pointer" onClick={() => handleToggleStatus(link)}>
                                 <Edit className="mr-2 h-4 w-4" />
                                 {link.status === 'active' ? 'Deactivate' : 'Activate'}
