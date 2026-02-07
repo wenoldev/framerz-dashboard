@@ -24,8 +24,8 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 import { format } from "date-fns"
-import { QRCodeSVG } from "qrcode.react"
 import { useRouter } from "next/navigation"
+import QRDesigner from "./QRDesigner"
 
 type Link = {
   id: string
@@ -54,7 +54,6 @@ export default function LinkTableClient({ initialLinks }: Props) {
   const [currentLink, setCurrentLink] = useState<Link | null>(null)
   const [error, setError] = useState("")
   const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null)
-  const qrCodeRef = useRef<any>(null)
   const itemsPerPage = 8
 
   function isValidDate(date: Date): boolean {
@@ -107,26 +106,38 @@ export default function LinkTableClient({ initialLinks }: Props) {
     }
   }
 
-  const downloadQrCode = () => {
-    if (qrCodeRef.current) {
-      const canvas = qrCodeRef.current.querySelector("svg")
-      if (canvas) {
-        const svgData = new XMLSerializer().serializeToString(canvas)
-        const canvasElement = document.createElement("canvas")
-        const ctx = canvasElement.getContext("2d")
-        const img = new Image()
-        img.onload = () => {
-          canvasElement.width = img.width
-          canvasElement.height = img.height
-          ctx?.drawImage(img, 0, 0)
-          const url = canvasElement.toDataURL("image/png")
-          const link = document.createElement("a")
-          link.href = url
-          link.download = `qr-code-${currentLink?.customer_name || "link"}.png`
-          link.click()
-        }
-        img.src = "data:image/svg+xml;base64," + btoa(svgData)
+  const handleDuplicateLink = async (link: Link) => {
+    setIsLoading(true)
+    try {
+      const payload = {
+        customer_name: `${link.customer_name} (Copy)`,
+        mind_file_url: link.mind_file || "",
+        video_url: link.video || "",
+        thumbnail_url: link.thumbnail || "",
       }
+
+      const response = await fetch("/api", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+
+      const data = await response.json()
+
+      if (response.status === 402 && data.payUrl) {
+        window.location.href = data.payUrl
+        return
+      }
+
+      if (!response.ok) throw new Error(data.error || "Failed to duplicate link")
+
+      toast.success("Link duplicated successfully!")
+      router.refresh()
+    } catch (error: any) {
+      toast.error(error.message || "Failed to duplicate link")
+      console.error("Error duplicating link:", error)
+    } finally {
+      setIsLoading(false)
     }
   }
 
@@ -283,6 +294,13 @@ export default function LinkTableClient({ initialLinks }: Props) {
                                 <Trash2 className="mr-2 h-4 w-4" />
                                 Delete Link
                               </DropdownMenuItem>
+                              <DropdownMenuItem
+                                className="cursor-pointer"
+                                onClick={() => handleDuplicateLink(link)}
+                              >
+                                <Copy className="mr-2 h-4 w-4" />
+                                Duplicate Link
+                              </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </td>
@@ -326,9 +344,8 @@ export default function LinkTableClient({ initialLinks }: Props) {
                           variant={currentPage === pageNum ? "default" : "outline"}
                           size="sm"
                           onClick={() => setCurrentPage(pageNum)}
-                          className={`w-10 h-10 ${
-                            currentPage === pageNum ? "bg-purple-600 text-white" : "border-gray-300 hover:bg-purple-50"
-                          }`}
+                          className={`w-10 h-10 ${currentPage === pageNum ? "bg-purple-600 text-white" : "border-gray-300 hover:bg-purple-50"
+                            }`}
                         >
                           {pageNum}
                         </Button>
@@ -351,37 +368,18 @@ export default function LinkTableClient({ initialLinks }: Props) {
         </CardContent>
       </Card>
 
-      {/* View QR Code Dialog remains unchanged */}
-      <Dialog open={isViewQrDialogOpen} onOpenChange={setIsViewQrDialogOpen}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="text-xl font-semibold text-gray-800">QR Code</DialogTitle>
-          </DialogHeader>
-          <div className="flex flex-col items-center space-y-4 py-4">
-            <p className="text-gray-700">Scan or download the QR code for {currentLink?.customer_name || "link"}:</p>
-            <div ref={qrCodeRef}>
-              <QRCodeSVG value={qrCodeUrl || ""} size={200} />
-            </div>
-            <div className="flex space-x-3">
-              <Button onClick={downloadQrCode} className="bg-blue-600 hover:bg-blue-700 text-white">
-                <Download className="w-4 h-4 mr-2" />
-                Download QR Code
-              </Button>
-              <Button
-                onClick={() => {
-                  setIsViewQrDialogOpen(false)
-                  setQrCodeUrl(null)
-                  setCurrentLink(null)
-                }}
-                className="bg-purple-600 hover:bg-purple-700 text-white"
-              >
-                Close
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-    </div>
+      {/* View QR Code Dialog */}
+      <QRDesigner
+        isOpen={isViewQrDialogOpen}
+        onClose={() => {
+          setIsViewQrDialogOpen(false)
+          setQrCodeUrl(null)
+          setCurrentLink(null)
+        }}
+        url={qrCodeUrl || ""}
+        title={currentLink?.customer_name || "Link QR"}
+      />
+    </div >
   )
 }
 
