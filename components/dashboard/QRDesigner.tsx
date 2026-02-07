@@ -4,9 +4,6 @@ import { useEffect, useRef, useState } from "react"
 import QRCodeStyling, {
     Options,
     DrawType,
-    TypeNumber,
-    Mode,
-    ErrorCorrectionLevel,
     DotType,
     CornerSquareType,
     CornerDotType,
