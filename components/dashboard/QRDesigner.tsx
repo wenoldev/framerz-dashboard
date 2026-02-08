@@ -43,7 +43,7 @@ export default function QRDesigner({ url, isOpen, onClose, title }: QRDesignerPr
             type: "svg" as DrawType,
             data: url,
             image: "",
-            margin: 20,
+            margin: 0,
             dotsOptions: {
                 color: dotsColor,
                 type: dotType,
@@ -61,7 +61,7 @@ export default function QRDesigner({ url, isOpen, onClose, title }: QRDesignerPr
             },
             imageOptions: {
                 crossOrigin: "anonymous",
-                margin: 20,
+                margin: 10,
             },
         })
 
@@ -85,7 +85,7 @@ export default function QRDesigner({ url, isOpen, onClose, title }: QRDesignerPr
             width: size,
             height: size,
             data: url,
-            margin: 20,
+            margin: 10,
             dotsOptions: {
                 color: dotsColor,
                 type: dotType,
@@ -121,8 +121,8 @@ export default function QRDesigner({ url, isOpen, onClose, title }: QRDesignerPr
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8 py-4">
                     {/* Preview Area */}
-                    <div className="flex flex-col items-center justify-center bg-gray-50 rounded-lg p-6 border border-gray-200">
-                        <div ref={ref} className="bg-white shadow-sm p-4 rounded-xl" />
+                    <div className="flex flex-col items-center justify-center bg-gray-50 rounded-lg p-3 border border-gray-200">
+                        <div ref={ref} className="bg-white shadow-sm p-0 rounded-xl overflow-hidden" />
                         <p className="mt-4 text-sm text-gray-500 font-medium">{title}</p>
                         <p className="text-xs text-gray-400 break-all text-center max-w-[250px] mt-1">{url}</p>
                     </div>
