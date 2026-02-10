@@ -30,7 +30,7 @@ export default function QRDesigner({ url, isOpen, onClose, title }: QRDesignerPr
     const [dotsColor, setDotsColor] = useState("#000000")
     const [bgColor, setBgColor] = useState("#ffffff")
     const [dotType, setDotType] = useState<DotType>("rounded")
-    const [cornerType, setCornerType] = useState<CornerSquareType>("extra-rounded")
+    const [cornerType, setCornerType] = useState<CornerSquareType>("square")
     const [size, setSize] = useState(300)
 
     useEffect(() => {
