@@ -13,7 +13,7 @@ export async function Header() {
       <div className="mx-auto flex justify-between items-center py-4 px-4">
         <Link href="/" className="font-bold text-xl flex items-center">
           <span className="w-2 h-2 bg-black mr-2 font-mono"></span>
-          Tuty Gift
+          Tuty Gifty
         </Link>
         <nav className="flex items-center space-x-6">
           {/* <Link href="/pricing" className="text-sm hover:text-blue-600 transition-colors">
