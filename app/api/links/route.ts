@@ -177,7 +177,7 @@ export async function PUT(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { id, customer_name, mind_file_url, video_url, thumbnail_url, status } = body;
+    const { id, customer_name, slug, mind_file_url, video_url, thumbnail_url, status } = body;
 
     if (!id) {
       return NextResponse.json({ error: 'id is required' }, { status: 400 });
@@ -197,6 +197,7 @@ export async function PUT(request: NextRequest) {
     const updates: any = {};
 
     if (customer_name) updates.customer_name = customer_name;
+    if (slug) updates.slug = slug.trim();
     if (status) updates.status = status;
 
     if (mind_file_url && mind_file_url !== existingLink.mind_file_url) {
@@ -240,7 +241,12 @@ export async function PUT(request: NextRequest) {
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      if (error.code === '23505') { // postgres unique violation
+        return NextResponse.json({ error: 'This slug is already taken' }, { status: 400 });
+      }
+      throw error;
+    }
 
     return NextResponse.json(updatedLink);
   } catch (error) {

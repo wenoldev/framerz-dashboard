@@ -68,6 +68,7 @@ export default function LinkTableClient({ initialLinks }: Props) {
   const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
   const [newLinkData, setNewLinkData] = useState({
     customer_name: '',
+    slug: '',
     mind_file: null as File | null,
     video: null as File | null,
     thumbnail: null as File | null,
@@ -352,6 +353,19 @@ export default function LinkTableClient({ initialLinks }: Props) {
       return;
     }
 
+    if (!newLinkData.slug.trim()) {
+      setError('Please enter a custom slug');
+      setIsLoading(false);
+      return;
+    }
+
+    const slugRegex = /^[a-zA-Z0-9_-]+$/;
+    if (!slugRegex.test(newLinkData.slug.trim())) {
+      setError('Slug must only contain letters, numbers, hyphens, and underscores');
+      setIsLoading(false);
+      return;
+    }
+
     if (newLinkData.mind_file) {
       if (!newLinkData.mind_file.name.endsWith('.mind')) {
         setError('Please upload a valid .mind file');
@@ -406,6 +420,7 @@ export default function LinkTableClient({ initialLinks }: Props) {
         body: JSON.stringify({
           id: currentLink.id,
           customer_name: newLinkData.customer_name,
+          slug: newLinkData.slug.trim(),
           mind_file_url: mind_file_url || '',
           video_url: video_url || '',
           thumbnail_url: thumbnail_url || '',
@@ -413,7 +428,8 @@ export default function LinkTableClient({ initialLinks }: Props) {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to update link');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to update link');
       }
 
       const data = await response.json();
@@ -434,9 +450,11 @@ export default function LinkTableClient({ initialLinks }: Props) {
       toast.success('Link updated successfully!');
       setIsEditDialogOpen(false);
       setCurrentLink(null);
-    } catch (error) {
-      toast.error('Failed to update link');
-      console.error('Error updating link:', error);
+    } catch (err: any) {
+      const errorMsg = err.message || 'Failed to update link';
+      toast.error(errorMsg);
+      setError(errorMsg);
+      console.error('Error updating link:', err);
     } finally {
       setIsLoading(false);
     }
@@ -498,6 +516,7 @@ export default function LinkTableClient({ initialLinks }: Props) {
     setCurrentLink(link);
     setNewLinkData({
       customer_name: link.customer_name || '',
+      slug: link.slug || '',
       mind_file: null,
       video: null,
       thumbnail: null,
@@ -568,6 +587,7 @@ export default function LinkTableClient({ initialLinks }: Props) {
                             setQrCodeUrl(null);
                             setNewLinkData({
                               customer_name: '',
+                              slug: '',
                               mind_file: null,
                               video: null,
                               thumbnail: null,
@@ -851,6 +871,18 @@ export default function LinkTableClient({ initialLinks }: Props) {
               />
             </div>
             <div className="space-y-2">
+              <Label htmlFor="edit-slug" className="text-sm font-medium text-gray-700">
+                Slug *
+              </Label>
+              <Input
+                id="edit-slug"
+                placeholder="Enter custom slug"
+                value={newLinkData.slug}
+                onChange={(e) => setNewLinkData({ ...newLinkData, slug: e.target.value })}
+                className="border-gray-200 focus:border-blue-500"
+              />
+            </div>
+            <div className="space-y-2">
               <Label htmlFor="edit-mind_file" className="text-sm font-medium text-gray-700">
                 Mind File (Optional, .mind, max 5MB)
               </Label>
@@ -913,7 +945,7 @@ export default function LinkTableClient({ initialLinks }: Props) {
               </Button>
               <Button
                 onClick={handleUpdateLink}
-                disabled={isLoading || !newLinkData.customer_name}
+                disabled={isLoading || !newLinkData.customer_name || !newLinkData.slug}
                 className="bg-blue-600 hover:bg-blue-700 text-white"
               >
                 {isLoading ? 'Saving...' : 'Save Changes'}
