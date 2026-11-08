@@ -25,7 +25,7 @@ export async function OPTIONS() {
   return withCors(new NextResponse(null, { status: 204 }));
 }
 
-// GET: Fetch all links for the authenticated user
+// GET: Fetch link assets by slug and increment visitor/scan count
 export async function GET(req: NextRequest) {
   const supabase = await createSupabaseServerClient();
   const slug = req.nextUrl.searchParams.get("slug");
@@ -36,21 +36,40 @@ export async function GET(req: NextRequest) {
 
   const { data, error } = await supabase
     .from("data")
-    .select("mind_file_url, video_url, thumbnail_url, customer_name")
+    .select("id, mind_file_url, video_url, thumbnail_url, customer_name, scans")
     .eq("slug", slug)
     .maybeSingle();
+
   if (error || !data) {
     return withCors(NextResponse.json({ error: "Not found" }, { status: 404 }));
   }
 
-  return withCors(
-    NextResponse.json({
-      customer_name: data.customer_name,
-      mind_file_url: data.mind_file_url,
-      video_url: data.video_url,
-      thumbnail_url: data.thumbnail_url,
-    }),
-  );
+  // Increment visitors/scans count
+  const currentScans = typeof data.scans === "number" ? data.scans : 0;
+  const newScans = currentScans + 1;
+
+  try {
+    await supabase
+      .from("data")
+      .update({ scans: newScans })
+      .eq("id", data.id);
+  } catch (updateErr) {
+    console.error("Failed to increment visitor/scan count:", updateErr);
+  }
+
+  const response = NextResponse.json({
+    customer_name: data.customer_name,
+    mind_file_url: data.mind_file_url,
+    video_url: data.video_url,
+    thumbnail_url: data.thumbnail_url,
+    scans: newScans,
+  });
+
+  response.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+  response.headers.set("Pragma", "no-cache");
+  response.headers.set("Expires", "0");
+
+  return withCors(response);
 }
 
 // POST: Generate presigned URL for Cloudinary upload

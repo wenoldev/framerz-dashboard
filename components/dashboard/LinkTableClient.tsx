@@ -41,6 +41,9 @@ import {
   RotateCcw,
   CheckCircle2,
   AlertCircle,
+  Users,
+  RefreshCw,
+  Sparkles,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
@@ -152,6 +155,49 @@ export default function LinkTableClient({ initialLinks }: Props) {
       })
     );
   }, [initialLinks]);
+
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const refreshLinks = async (showToast = true) => {
+    setIsRefreshing(true);
+    try {
+      const response = await fetch('/api/links');
+      if (response.ok) {
+        const freshLinks = await response.json();
+        setLinks(
+          freshLinks.map((link: any) => {
+            const created_at = link.created_at ? new Date(link.created_at) : new Date();
+            return {
+              ...link,
+              created_at: isValidDate(created_at) ? format(created_at, 'MMM d, yyyy') : 'Invalid date',
+              shortUrl: link.shortUrl || `${process.env.NEXT_PUBLIC_MAIN_URL}?f=${link.slug}`,
+              mind_file: link.mind_file || link.mind_file_url || null,
+              video: link.video || link.video_url || null,
+              thumbnail: link.thumbnail || link.thumbnail_url || null,
+            };
+          })
+        );
+        if (showToast) {
+          toast.success('Visitor counts and links refreshed!');
+        }
+      }
+    } catch (err) {
+      console.error('Failed to refresh links:', err);
+      if (showToast) {
+        toast.error('Failed to refresh data');
+      }
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  // Silently refresh links and visitor counts every 20 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      refreshLinks(false);
+    }, 20000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Clean up object URLs on unmount
   useEffect(() => {
@@ -682,8 +728,53 @@ export default function LinkTableClient({ initialLinks }: Props) {
     }
   };
 
+  const totalVisitors = links.reduce((sum, link) => sum + (Number(link.scans) || 0), 0);
+  const activeLinksCount = links.filter((link) => (link.status ?? 'active') === 'active').length;
+
   return (
     <div className="max-w-7xl mx-auto p-4 sm:p-6 space-y-6">
+      {/* Analytics Overview Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <Card className="border border-gray-100 shadow-sm bg-gradient-to-br from-blue-50/50 via-white to-white">
+          <CardContent className="p-5 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-semibold text-blue-600 uppercase tracking-wider">Total Visitors</p>
+              <h3 className="text-2xl font-bold text-gray-900 mt-1">{totalVisitors.toLocaleString()}</h3>
+              <p className="text-xs text-gray-500 mt-0.5">Total scans across all AR links</p>
+            </div>
+            <div className="w-12 h-12 rounded-xl bg-blue-100/70 text-blue-600 flex items-center justify-center">
+              <Users className="w-6 h-6" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border border-gray-100 shadow-sm bg-gradient-to-br from-emerald-50/50 via-white to-white">
+          <CardContent className="p-5 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-semibold text-emerald-600 uppercase tracking-wider">Active Links</p>
+              <h3 className="text-2xl font-bold text-gray-900 mt-1">{activeLinksCount}</h3>
+              <p className="text-xs text-gray-500 mt-0.5">Live & ready for scanning</p>
+            </div>
+            <div className="w-12 h-12 rounded-xl bg-emerald-100/70 text-emerald-600 flex items-center justify-center">
+              <CheckCircle2 className="w-6 h-6" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border border-gray-100 shadow-sm bg-gradient-to-br from-purple-50/50 via-white to-white">
+          <CardContent className="p-5 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-semibold text-purple-600 uppercase tracking-wider">Total AR Assets</p>
+              <h3 className="text-2xl font-bold text-gray-900 mt-1">{links.length}</h3>
+              <p className="text-xs text-gray-500 mt-0.5">Active customer projects</p>
+            </div>
+            <div className="w-12 h-12 rounded-xl bg-purple-100/70 text-purple-600 flex items-center justify-center">
+              <Sparkles className="w-6 h-6" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
       <Card className="shadow-lg border-0 bg-white">
         <CardHeader className="pb-6 border-b border-gray-100">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -704,6 +795,16 @@ export default function LinkTableClient({ initialLinks }: Props) {
                   className="pl-10 border-gray-200 focus:border-blue-500 rounded-lg text-sm"
                 />
               </div>
+              <Button
+                variant="outline"
+                onClick={() => refreshLinks(true)}
+                disabled={isRefreshing}
+                className="border-gray-200 hover:bg-gray-50 text-gray-700 rounded-lg font-medium shadow-xs"
+                title="Refresh visitor counts and links"
+              >
+                <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? 'animate-spin text-blue-600' : 'text-gray-500'}`} />
+                <span>{isRefreshing ? 'Refreshing...' : 'Refresh'}</span>
+              </Button>
               <Dialog open={isCreateDialogOpen} onOpenChange={(open) => {
                 setIsCreateDialogOpen(open);
                 if (!open) {
@@ -952,7 +1053,7 @@ export default function LinkTableClient({ initialLinks }: Props) {
                       <th className="text-left py-3.5 px-4">Thumbnail</th>
                       <th className="text-left py-3.5 px-4">Video Asset</th>
                       <th className="text-left py-3.5 px-4">Mind Target</th>
-                      <th className="text-left py-3.5 px-4">Scans</th>
+                      <th className="text-left py-3.5 px-4">Visitors</th>
                       <th className="text-left py-3.5 px-4">Status</th>
                       <th className="text-left py-3.5 px-4">Created</th>
                       <th className="text-right py-3.5 px-4">Actions</th>
@@ -1071,11 +1172,12 @@ export default function LinkTableClient({ initialLinks }: Props) {
                           )}
                         </td>
 
-                        {/* Scans */}
+                        {/* Visitors / Scans */}
                         <td className="py-3.5 px-4">
-                          <div className="flex items-center space-x-1.5">
-                            <BarChart3 className="h-4 w-4 text-blue-500" />
-                            <span className="font-semibold text-gray-900">{link.scans}</span>
+                          <div className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200/60 shadow-xs">
+                            <Users className="h-3.5 w-3.5 text-blue-500" />
+                            <span>{(link.scans ?? 0).toLocaleString()}</span>
+                            <span className="text-[10px] text-blue-400 font-normal">scans</span>
                           </div>
                         </td>
 
