@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseServerClient } from '@/lib/auth';
 import { v2 as cloudinary } from 'cloudinary';
 import crypto from 'crypto';
+import { destroyCloudinaryAsset } from '@/lib/cloudinary';
 
 // Configure Cloudinary
 cloudinary.config({
@@ -189,30 +190,21 @@ export async function PUT(request: NextRequest) {
 
     if (mind_file_url && mind_file_url !== existingLink.mind_file_url) {
       if (existingLink.mind_file_url) {
-        const oldInfo = extractCloudinaryInfo(existingLink.mind_file_url);
-        if (oldInfo) {
-          await cloudinary.uploader.destroy(oldInfo.public_id, { resource_type: oldInfo.resource_type });
-        }
+        await destroyCloudinaryAsset(existingLink.mind_file_url);
       }
       updates.mind_file_url = mind_file_url;
     }
 
     if (video_url && video_url !== existingLink.video_url) {
       if (existingLink.video_url) {
-        const oldInfo = extractCloudinaryInfo(existingLink.video_url);
-        if (oldInfo) {
-          await cloudinary.uploader.destroy(oldInfo.public_id, { resource_type: oldInfo.resource_type });
-        }
+        await destroyCloudinaryAsset(existingLink.video_url);
       }
       updates.video_url = video_url;
     }
 
     if (thumbnail_url && thumbnail_url !== existingLink.thumbnail_url) {
       if (existingLink.thumbnail_url) {
-        const oldInfo = extractCloudinaryInfo(existingLink.thumbnail_url);
-        if (oldInfo) {
-          await cloudinary.uploader.destroy(oldInfo.public_id, { resource_type: oldInfo.resource_type });
-        }
+        await destroyCloudinaryAsset(existingLink.thumbnail_url);
       }
       updates.thumbnail_url = thumbnail_url;
     }
@@ -260,24 +252,15 @@ export async function DELETE(request: NextRequest) {
     }
 
     if (existingLink.mind_file_url) {
-      const info = extractCloudinaryInfo(existingLink.mind_file_url);
-      if (info) {
-        await cloudinary.uploader.destroy(info.public_id, { resource_type: info.resource_type });
-      }
+      await destroyCloudinaryAsset(existingLink.mind_file_url);
     }
 
     if (existingLink.video_url) {
-      const info = extractCloudinaryInfo(existingLink.video_url);
-      if (info) {
-        await cloudinary.uploader.destroy(info.public_id, { resource_type: info.resource_type });
-      }
+      await destroyCloudinaryAsset(existingLink.video_url);
     }
 
     if (existingLink.thumbnail_url) {
-      const info = extractCloudinaryInfo(existingLink.thumbnail_url);
-      if (info) {
-        await cloudinary.uploader.destroy(info.public_id, { resource_type: info.resource_type });
-      }
+      await destroyCloudinaryAsset(existingLink.thumbnail_url);
     }
 
     const { error } = await supabase.from('data').delete().eq('id', id);
@@ -291,13 +274,3 @@ export async function DELETE(request: NextRequest) {
   }
 }
 
-// Helper function to extract Cloudinary info
-function extractCloudinaryInfo(url: string): { resource_type: string; public_id: string } | null {
-  const match = url.match(/https?:\/\/res\.cloudinary\.com\/[^\/]+\/(image|video|raw)\/upload\/(?:v\d+\/)?(.*?)(\.[^\/.]*)?$/);
-  if (match) {
-    const resource_type = match[1];
-    const public_id = match[2] + (match[3] || '');
-    return { resource_type, public_id };
-  }
-  return null;
-}

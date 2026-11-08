@@ -4,6 +4,7 @@ import type { NextRequest } from 'next/server';
 import fsPromises from 'fs/promises';
 import pathModule from 'path';
 import { v2 as cloudinary } from 'cloudinary';
+import { destroyCloudinaryAsset } from '@/lib/cloudinary';
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -32,15 +33,6 @@ async function cleanupTemp(tempDir: string) {
   }
 }
 
-function extractCloudinaryInfo(url: string): { resource_type: string; public_id: string } | null {
-  const match = url.match(/https?:\/\/res\.cloudinary\.com\/[^\/]+\/(image|video|raw)\/upload\/(?:v\d+\/)?(.*?)(\.[^\/.]*)?$/);
-  if (match) {
-    const resource_type = match[1];
-    const public_id = match[2] + (match[3] || '');
-    return { resource_type, public_id };
-  }
-  return null;
-}
 
 export async function GET(request: NextRequest) {
   const supabase = await createSupabaseServerClient();
@@ -200,34 +192,25 @@ export async function PUT(request: NextRequest) {
     if (slug) updates.slug = slug.trim();
     if (status) updates.status = status;
 
-    if (mind_file_url && mind_file_url !== existingLink.mind_file_url) {
+    if (mind_file_url !== undefined && mind_file_url !== existingLink.mind_file_url) {
       if (existingLink.mind_file_url) {
-        const oldInfo = extractCloudinaryInfo(existingLink.mind_file_url);
-        if (oldInfo) {
-          await cloudinary.uploader.destroy(oldInfo.public_id, { resource_type: oldInfo.resource_type });
-        }
+        await destroyCloudinaryAsset(existingLink.mind_file_url);
       }
-      updates.mind_file_url = mind_file_url;
+      updates.mind_file_url = mind_file_url || null;
     }
 
-    if (video_url && video_url !== existingLink.video_url) {
+    if (video_url !== undefined && video_url !== existingLink.video_url) {
       if (existingLink.video_url) {
-        const oldInfo = extractCloudinaryInfo(existingLink.video_url);
-        if (oldInfo) {
-          await cloudinary.uploader.destroy(oldInfo.public_id, { resource_type: oldInfo.resource_type });
-        }
+        await destroyCloudinaryAsset(existingLink.video_url);
       }
-      updates.video_url = video_url;
+      updates.video_url = video_url || null;
     }
 
-    if (thumbnail_url && thumbnail_url !== existingLink.thumbnail_url) {
+    if (thumbnail_url !== undefined && thumbnail_url !== existingLink.thumbnail_url) {
       if (existingLink.thumbnail_url) {
-        const oldInfo = extractCloudinaryInfo(existingLink.thumbnail_url);
-        if (oldInfo) {
-          await cloudinary.uploader.destroy(oldInfo.public_id, { resource_type: oldInfo.resource_type });
-        }
+        await destroyCloudinaryAsset(existingLink.thumbnail_url);
       }
-      updates.thumbnail_url = thumbnail_url;
+      updates.thumbnail_url = thumbnail_url || null;
     }
 
     if (Object.keys(updates).length === 0) {
@@ -249,9 +232,12 @@ export async function PUT(request: NextRequest) {
     }
 
     return NextResponse.json(updatedLink);
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error updating link:', error);
-    return NextResponse.json({ error: 'Failed to update link' }, { status: 500 });
+    return NextResponse.json({
+      error: 'Failed to update link',
+      details: error?.message || String(error)
+    }, { status: 500 });
   }
 }
 
@@ -277,24 +263,15 @@ export async function DELETE(request: NextRequest) {
     }
 
     if (existingLink.mind_file_url) {
-      const info = extractCloudinaryInfo(existingLink.mind_file_url);
-      if (info) {
-        await cloudinary.uploader.destroy(info.public_id, { resource_type: info.resource_type });
-      }
+      await destroyCloudinaryAsset(existingLink.mind_file_url);
     }
 
     if (existingLink.video_url) {
-      const info = extractCloudinaryInfo(existingLink.video_url);
-      if (info) {
-        await cloudinary.uploader.destroy(info.public_id, { resource_type: info.resource_type });
-      }
+      await destroyCloudinaryAsset(existingLink.video_url);
     }
 
     if (existingLink.thumbnail_url) {
-      const info = extractCloudinaryInfo(existingLink.thumbnail_url);
-      if (info) {
-        await cloudinary.uploader.destroy(info.public_id, { resource_type: info.resource_type });
-      }
+      await destroyCloudinaryAsset(existingLink.thumbnail_url);
     }
 
     const { error } = await supabase.from('data').delete().eq('id', id);
@@ -302,8 +279,11 @@ export async function DELETE(request: NextRequest) {
     if (error) throw error;
 
     return NextResponse.json({ success: true }, { status: 200 });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error deleting link:', error);
-    return NextResponse.json({ error: 'Failed to delete link' }, { status: 500 });
+    return NextResponse.json({
+      error: 'Failed to delete link',
+      details: error?.message || String(error)
+    }, { status: 500 });
   }
 }

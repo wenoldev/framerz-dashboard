@@ -1,0 +1,32 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "framerz-dashboard",
+  "account_id": "f92d980d19fd77abfd74272e27ddc953",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2024-12-30",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "observability": {
+    "enabled": true
+  },
+  "vars": {
+    "ENVIRONMENT": "production",
+    "CLOUDINARY_CLOUD_NAME": "dh6ar2d6w",
+    "CLOUDINARY_API_KEY": "344838687948243",
+    "CLOUDINARY_API_SECRET": "nZcDgjIVKWP77GlrznIVwb4fRiU",
+    "RAZORPAY_KEY_ID": "rzp_test_RSGXyaESWBV7ez",
+    "RAZORPAY_KEY_SECRET": "K5jTSCJ8BQ4683XgZmsSTtxk",
+    "RAZORPAY_WEBHOOK_SECRET": "9f8c1e6a4b3d2f10c7e8b9a123456789",
+    "CLOUDINARY_UPLOAD_PRESET": "unsigned_upload_preset",
+    "NEXT_PUBLIC_SUPABASE_URL": "https://vwxipcvdckqfnqsdcdtx.supabase.co",
+    "NEXT_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ3eGlwY3ZkY2txZm5xc2RjZHR4Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NjgzNTA2NiwiZXhwIjoyMDcyNDExMDY2fQ.ISzdhAA2zUUC1LQoFoCa1EpyvipK6dR2J1cs49gl5FE",
+    "NEXT_PUBLIC_MAIN_URL": "https://scan.tutygifty.com",
+    "NEXT_PUBLIC_RAZORPAY_KEY_ID": "rzp_test_RSGXyaESWBV7ez"
+  }
+}
+
